@@ -1,0 +1,84 @@
+[
+  {
+    "_meta": "This file is guidance, not an official VAG fault-code catalog. VAG's internal 5-digit fault numbers (the kind VCDS prints, e.g. '01314 - Throttle Position Sensor') aren't something we can reliably recite from memory for every module/model-year combination, and getting one wrong is worse than not having it. Entries below have 'vag_fault_code': null until confirmed against a real capture from this car (see vagscan.vag bus logger) - fill it in once you've seen it on the wire, that's the intended workflow for growing this file over time."
+  },
+  {
+    "vag_fault_code": null, "module_address": "01", "module_name": "Engine (Simos 7.1)",
+    "title": "Known Simos 7.1 access limits via ELM327",
+    "description": "Simos 7.1 on this platform speaks VAG's KWP2000-over-CAN (TP20), not the plain ISO-TP the ELM327's built-in OBD modes use. Generic Mode 01/03/04/07/0A (vagscan.obd2) work over the emissions-related OBD-II part of this ECU regardless. Anything beyond that (full measuring blocks / adaptation channels / coding) goes through vagscan.vag's TP20 client, which is experimental and needs validation against this specific car before being trusted for anything beyond read-only use.",
+    "common_causes": [], "suggested_checks": ["Use the bus logger (vagscan.vag) with the car running and a scan tool like VCDS unavailable/available for comparison, to confirm TP20 channel IDs and timing before relying on write operations (DTC clear, adaptation)."],
+    "severity": "informational", "source": "engineering note, not a fault code"
+  },
+  {
+    "vag_fault_code": null, "module_address": "15", "module_name": "Airbag/SRS",
+    "title": "Seatbelt tensioner squib circuit fault",
+    "description": "SRS module reports an open or short circuit in a seatbelt pretensioner's pyrotechnic squib loop, or its resistance is outside the expected range.",
+    "common_causes": ["Corroded connector under the seat", "Damaged wiring from seat movement/wear", "Actually fired (deployed) tensioner from a prior collision"],
+    "suggested_checks": ["Visually confirm the tensioner has not actually fired before assuming a wiring fault", "Inspect and clean the under-seat connector", "Never probe a squib circuit with a generic multimeter - its current can fire the pyrotechnic device; use a purpose-built airbag simulator/resistor substitute tool"],
+    "severity": "severe", "source": "general SRS diagnostic knowledge, not a specific VAG code lookup"
+  },
+  {
+    "vag_fault_code": null, "module_address": "15", "module_name": "Airbag/SRS",
+    "title": "Side/curtain airbag squib circuit fault",
+    "description": "SRS module reports an open or short circuit in a side or curtain airbag squib loop.",
+    "common_causes": ["Connector corrosion in the B-pillar/seat wiring", "Wiring damage from upholstery work or a prior collision repair"],
+    "suggested_checks": ["Inspect B-pillar and seat-mounted connectors", "Confirm no prior deployment before clearing"],
+    "severity": "severe", "source": "general SRS diagnostic knowledge, not a specific VAG code lookup"
+  },
+  {
+    "vag_fault_code": null, "module_address": "15", "module_name": "Airbag/SRS",
+    "title": "Occupant detection / seat mat fault",
+    "description": "Passenger seat occupant classification sensor mat implausible or open circuit, affecting passenger airbag enable/disable logic.",
+    "common_causes": ["Sensor mat damaged by cleaning liquids or wear", "Aftermarket seat cover pinching the mat", "Connector under seat rail corroded"],
+    "suggested_checks": ["Check for non-OEM seat covers compressing the mat", "Inspect under-seat connector"],
+    "severity": "severe", "source": "general SRS diagnostic knowledge, not a specific VAG code lookup"
+  },
+  {
+    "vag_fault_code": null, "module_address": "15", "module_name": "Airbag/SRS",
+    "title": "Crash event data present (deployment history)",
+    "description": "The SRS module has stored crash/deployment event data from an actual airbag deployment.",
+    "common_causes": ["A real collision event"],
+    "suggested_checks": ["Do not clear this without understanding it reflects an actual event - if buying a used car, this can indicate undisclosed prior airbag deployment/repair"],
+    "severity": "severe", "source": "general SRS diagnostic knowledge, not a specific VAG code lookup"
+  },
+  {
+    "vag_fault_code": null, "module_address": "17", "module_name": "Instrument cluster",
+    "title": "Immobilizer/cluster synchronization implausible",
+    "description": "Cluster reports a mismatch talking to the immobilizer function (often integrated in the cluster on this platform generation).",
+    "common_causes": ["Battery disconnect/replacement without an adaptation procedure", "Aftermarket alarm/remote-start wiring interfering with the ignition circuit"],
+    "suggested_checks": ["Check for aftermarket alarm/immobilizer bypass wiring", "This may require dealer-level security-access login to resolve - beyond generic ELM327 scope by design (immobilizer bypass is out of scope for this project)"],
+    "severity": "severe", "source": "general platform knowledge, not a specific VAG code lookup"
+  },
+  {
+    "vag_fault_code": null, "module_address": "17", "module_name": "Instrument cluster",
+    "title": "Lost communication with engine/ABS/airbag module (network)",
+    "description": "Cluster reports it can't reach another module on the bus - cross-reference with a U0xxx generic code and check that module directly.",
+    "common_causes": ["The other module's own fault (check it directly)", "Bus wiring/connector issue affecting that module specifically"],
+    "suggested_checks": ["Scan the named module directly", "Check its fuse/power/ground and bus wiring"],
+    "severity": "moderate", "source": "general platform knowledge, not a specific VAG code lookup"
+  },
+  {
+    "vag_fault_code": null, "module_address": "03", "module_name": "ABS/ESP",
+    "title": "Steering angle sensor implausible/not calibrated",
+    "description": "ESP reports the steering angle sensor signal is missing or not calibrated.",
+    "common_causes": ["Battery disconnect or steering rack/column work without recalibration", "Clockspring/sensor connector fault"],
+    "suggested_checks": ["Perform steering angle sensor basic setting/calibration after any battery disconnect or steering work", "Check clockspring connector"],
+    "severity": "severe", "source": "general platform knowledge, not a specific VAG code lookup"
+  },
+  {
+    "vag_fault_code": null, "module_address": "03", "module_name": "ABS/ESP",
+    "title": "Brake light switch implausible",
+    "description": "ESP reports the brake pedal switch signal doesn't match other inputs (e.g. brake pressure sensor).",
+    "common_causes": ["Misadjusted or failed brake light switch", "Wiring fault at the pedal box"],
+    "suggested_checks": ["Check brake light switch adjustment/operation", "Inspect wiring at the pedal box"],
+    "severity": "moderate", "source": "general platform knowledge, not a specific VAG code lookup"
+  },
+  {
+    "vag_fault_code": null, "module_address": "46", "module_name": "Comfort/convenience (central convenience module)",
+    "title": "Central locking / window module communication fault",
+    "description": "Comfort module reports a communication or actuator fault, commonly a door/window/lock module.",
+    "common_causes": ["Door wiring harness fatigue at the door-to-body boot (very common failure point)", "Failed door control unit"],
+    "suggested_checks": ["Inspect the wiring boot between each door and the body pillar for broken conductors", "Check the specific door module reporting the fault"],
+    "severity": "informational", "source": "general platform knowledge, not a specific VAG code lookup"
+  }
+]

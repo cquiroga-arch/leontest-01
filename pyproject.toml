@@ -1,0 +1,31 @@
+[project]
+name = "vagscan"
+version = "0.1.0"
+description = "OBD-II + VAG (KWP2000/TP2.0) diagnostic scanner over ELM327 Bluetooth, built for a Seat Leon Mk2 1.6 BSE (Simos 7.1)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pyserial>=3.5",
+    "rich>=13.7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[project.scripts]
+vagscan = "vagscan.app.cli:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"vagscan.dtc_db" = ["data/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
