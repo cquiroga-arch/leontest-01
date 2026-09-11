@@ -5,11 +5,14 @@ IOWorker plumbing that keeps serial I/O off the Tk main thread.
 """
 from __future__ import annotations
 
+import logging
+import queue
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
+from vagscan.app.full_scan import FullScanner
 from vagscan.app.session import VagscanSession
-from vagscan.transport import list_serial_ports
+from vagscan.transport import autodetect_elm327, list_serial_ports
 from vagscan.vag.addresses import MODULE_ADDRESSES
 from vagscan.vag.kwp2000 import KWP2000Client, KWP2000Error
 from vagscan.vag.tp20 import TP20Timeout
@@ -17,6 +20,8 @@ from vagscan.vag.tp20 import TP20Timeout
 from . import theme
 from .io_worker import IOWorker
 from .widgets import Gauge, StatusDot
+
+logger = logging.getLogger(__name__)
 
 LIVE_PIDS = [
     ("0C", "RPM", "rpm", 0, 7000, 6000),
@@ -31,8 +36,14 @@ LIVE_INTERVAL_MS = 600
 
 ABOUT_TEXT = """VAGScan - lo que hace y sus límites
 
-Capa OBD-II genérica (Panel, Fallas, En vivo): estándar, funciona en
-cualquier auto compatible OBD-II.
+Cómo se usa: enchufá el ELM327 al conector OBD del auto, emparejalo por
+Bluetooth en la PC, abrí la app y tocá "Buscar adaptador" (se hace solo al
+arrancar). Cuando diga Conectado, tocá ESCANEAR: lee el motor por OBD-II y
+después pregunta módulo por módulo cuáles responden.
+
+Capa OBD-II genérica (Escaneo, Fallas, En vivo): estándar, funciona en
+cualquier auto compatible OBD-II. Leer y borrar fallas del motor por acá
+sí actúa sobre la ECU real (Mode 03/04 de OBD-II).
 
 Capa VAG avanzada (pestaña "VAG avanzado"): EXPERIMENTAL. El Simos 7.1
 de este auto habla el protocolo propietario de VAG (KWP2000 sobre CAN,
@@ -67,7 +78,13 @@ class VagscanApp(ttk.Frame):
         self.session: VagscanSession | None = None
         self.streaming = False
         self._dtc_rows: dict[str, tuple[str, object]] = {}
+        self._scan_rows: dict[str, object] = {}
+        self._last_scan = None
         self._tp20_channel = None
+        # The scan runs on the IO thread but its progress has to be drawn on
+        # the UI thread, so it goes through a queue the poll loop drains -
+        # same reason IOWorker doesn't call back into Tk directly.
+        self._progress_queue: queue.Queue = queue.Queue()
 
         theme.apply(root)
         self.worker = IOWorker()
@@ -82,6 +99,9 @@ class VagscanApp(ttk.Frame):
         self._set_connected_state(False)
 
         root.protocol("WM_DELETE_WINDOW", self._on_close)
+        # Look for the adapter straight away, so the common case is "plug it
+        # in, open the app, it's already found it".
+        self.root.after(200, self._autodetect_adapter)
 
     # ------------------------------------------------------------------
     # layout
@@ -98,9 +118,10 @@ class VagscanApp(ttk.Frame):
         conn_box = ttk.Frame(header, style="Header.TFrame")
         conn_box.pack(side="right")
         self.port_var = tk.StringVar()
-        self.port_combo = ttk.Combobox(conn_box, textvariable=self.port_var, width=24, state="readonly")
+        self.port_combo = ttk.Combobox(conn_box, textvariable=self.port_var, width=22, state="readonly")
         self.port_combo.pack(side="left", padx=(0, 6))
-        ttk.Button(conn_box, text="↻", width=3, command=self._refresh_ports).pack(side="left", padx=(0, 6))
+        self.detect_btn = ttk.Button(conn_box, text="Buscar adaptador", command=self._autodetect_adapter)
+        self.detect_btn.pack(side="left", padx=(0, 6))
         self.connect_btn = ttk.Button(conn_box, text="Conectar", style="Accent.TButton", command=self._toggle_connect)
         self.connect_btn.pack(side="left", padx=(0, 12))
         self.status_dot = StatusDot(conn_box)
@@ -118,7 +139,7 @@ class VagscanApp(ttk.Frame):
 
         self.nav_buttons: dict[str, ttk.Button] = {}
         for key, label in [
-            ("panel", "Panel"),
+            ("panel", "Escaneo"),
             ("dtc", "Fallas (DTC)"),
             ("live", "En vivo"),
             ("vag", "VAG avanzado"),
@@ -153,11 +174,16 @@ class VagscanApp(ttk.Frame):
         self.pages[key].tkraise()
 
     # ------------------------------------------------------------------
-    # panel page
+    # scan page - the main screen
     # ------------------------------------------------------------------
     def _build_panel_page(self, parent: ttk.Frame) -> ttk.Frame:
         page = ttk.Frame(parent)
-        ttk.Label(page, text="Panel", font=(theme.FONT_FAMILY, 14, "bold")).pack(anchor="w", pady=(0, 12))
+
+        title_row = ttk.Frame(page)
+        title_row.pack(fill="x", pady=(0, 12))
+        ttk.Label(title_row, text="Escaneo del vehículo", font=(theme.FONT_FAMILY, 14, "bold")).pack(side="left")
+        self.scan_btn = ttk.Button(title_row, text="ESCANEAR", style="Accent.TButton", command=self._start_scan)
+        self.scan_btn.pack(side="right")
 
         cards = ttk.Frame(page)
         cards.pack(fill="x")
@@ -170,38 +196,160 @@ class VagscanApp(ttk.Frame):
             value.pack(anchor="w", pady=(4, 0))
             self._panel_labels[key] = value
 
-        self.refresh_info_btn = ttk.Button(
-            page, text="Actualizar información del vehículo", style="Accent.TButton", command=self._read_vehicle_info
-        )
-        self.refresh_info_btn.pack(anchor="w", pady=(16, 0))
+        progress_row = ttk.Frame(page)
+        progress_row.pack(fill="x", pady=(14, 4))
+        self.scan_progress = ttk.Progressbar(progress_row, mode="determinate", maximum=100)
+        self.scan_progress.pack(fill="x")
+        self.scan_progress_label = ttk.Label(page, text="Conectá el adaptador y tocá ESCANEAR.", style="Muted.TLabel")
+        self.scan_progress_label.pack(anchor="w")
 
-        ttk.Label(
-            page,
-            text="Conectá el adaptador arriba a la derecha y elegí una sección en el menú de la izquierda.",
-            style="Muted.TLabel",
-        ).pack(anchor="w", pady=(24, 0))
+        self.scan_tree = ttk.Treeview(page, columns=("detalle", "estado"), show="tree headings", height=11)
+        self.scan_tree.heading("#0", text="Elemento")
+        self.scan_tree.heading("detalle", text="Detalle")
+        self.scan_tree.heading("estado", text="Estado")
+        self.scan_tree.column("#0", width=230, anchor="w")
+        self.scan_tree.column("detalle", width=380, anchor="w")
+        self.scan_tree.column("estado", width=175, anchor="w")
+        self.scan_tree.pack(fill="both", expand=True, pady=(10, 8))
+        self.scan_tree.bind("<<TreeviewSelect>>", self._on_scan_select)
+
+        self.scan_detail = tk.Text(page, height=5, wrap="word", relief="flat", bg=theme.CARD_BG, state="disabled")
+        self.scan_detail.pack(fill="x")
+
+        action_row = ttk.Frame(page)
+        action_row.pack(fill="x", pady=(10, 0))
+        self.scan_clear_btn = ttk.Button(
+            action_row,
+            text="Borrar las fallas encontradas",
+            style="Danger.TButton",
+            command=self._clear_scanned_dtcs,
+            state="disabled",
+        )
+        self.scan_clear_btn.pack(side="left")
+        self.scan_summary_label = ttk.Label(action_row, text="", style="Muted.TLabel")
+        self.scan_summary_label.pack(side="left", padx=(12, 0))
         return page
 
-    def _read_vehicle_info(self) -> None:
+    def _start_scan(self) -> None:
         if self.session is None:
+            messagebox.showwarning("Sin conexión", "Primero conectá el adaptador.")
             return
+        self.streaming = False  # a live-data loop would compete for the adapter
+        self.live_toggle_btn.configure(text="Iniciar")
+        self.scan_tree.delete(*self.scan_tree.get_children())
+        self._scan_rows.clear()
+        self.scan_detail.configure(state="normal")
+        self.scan_detail.delete("1.0", "end")
+        self.scan_detail.configure(state="disabled")
+        self.scan_clear_btn.configure(state="disabled")
+        self.scan_summary_label.configure(text="")
+        self.scan_progress.configure(value=0)
+        self._last_scan = None
+
+        scanner = FullScanner(self.session)
 
         def job():
-            session = self.session
-            fp = session.driver.identify()
-            proto = session.driver.detected_protocol()
-            vin = session.obd2.read_vin()
-            return fp, proto, vin
+            # Note the lambda: Queue.put's own signature is (item, block,
+            # timeout), so passing it as the 3-arg progress callback directly
+            # would quietly drop the counts instead of queueing a tuple.
+            return scanner.run(progress=lambda label, current, total: self._progress_queue.put((label, current, total)))
 
         def on_success(result):
-            fp, proto, vin = result
-            self._panel_labels["ati"].configure(text=fp.ati or "?")
-            self._panel_labels["protocol"].configure(text=proto.name if proto else "desconocido")
-            self._panel_labels["voltage"].configure(text=fp.voltage or "?")
-            self._panel_labels["vin"].configure(text=vin or "no disponible")
-            self._set_status("Información del vehículo actualizada.", "ok")
+            self._last_scan = result
+            self._render_scan_result(result)
 
-        self._run(job, on_success, busy_widgets=(self.refresh_info_btn,))
+        def on_error(exc):
+            self.scan_progress_label.configure(text=f"El escaneo falló: {exc}")
+            self._set_status(f"Escaneo fallido: {exc}", "error")
+            messagebox.showerror("Escaneo fallido", str(exc))
+
+        self._set_status("Escaneando...", "info")
+        self._run(job, on_success, on_error, busy_widgets=(self.scan_btn,))
+
+    def _render_scan_result(self, result) -> None:
+        self._panel_labels["ati"].configure(text=result.adapter or "?")
+        self._panel_labels["protocol"].configure(text=result.protocol or "desconocido")
+        self._panel_labels["voltage"].configure(text=result.voltage or "?")
+        self._panel_labels["vin"].configure(text=result.vin or "no disponible")
+
+        engine_node = self.scan_tree.insert(
+            "", "end", text="Motor (OBD-II genérico)", values=("", f"{len(result.dtcs)} falla(s)"), open=True
+        )
+        if not result.dtcs:
+            self.scan_tree.insert(engine_node, "end", text="Sin fallas", values=("No hay códigos almacenados.", "OK"))
+        for found in result.dtcs:
+            iid = self.scan_tree.insert(
+                engine_node, "end", text=found.dtc.code, values=(found.title, f"{found.kind} · {found.severity}")
+            )
+            self._scan_rows[iid] = found
+
+        modules_node = self.scan_tree.insert(
+            "",
+            "end",
+            text="Módulos VAG (experimental)",
+            values=("", f"{len(result.responding_modules)} respondieron"),
+            open=True,
+        )
+        for module in result.modules:
+            if module.responded:
+                detail = ", ".join(f"ID {f.can_id_hex}" for f in module.frames[:3])
+                state = "respondió"
+            else:
+                detail = module.note or "sin respuesta"
+                state = "silencio"
+            self.scan_tree.insert(modules_node, "end", text=f"{module.address} - {module.name}", values=(detail, state))
+
+        if result.warnings:
+            warn_node = self.scan_tree.insert("", "end", text="Avisos", values=("", f"{len(result.warnings)}"), open=False)
+            for warning in result.warnings:
+                self.scan_tree.insert(warn_node, "end", text="", values=(warning, ""))
+
+        self.scan_progress.configure(value=100)
+        self.scan_progress_label.configure(text="Escaneo completo.")
+        self.scan_summary_label.configure(text=result.summary_line())
+        self.scan_clear_btn.configure(state="normal" if result.dtcs else "disabled")
+        self._set_status(result.summary_line(), "ok" if not result.dtcs else "warn")
+
+    def _on_scan_select(self, _event) -> None:
+        selection = self.scan_tree.selection()
+        self.scan_detail.configure(state="normal")
+        self.scan_detail.delete("1.0", "end")
+        if selection:
+            found = self._scan_rows.get(selection[0])
+            if found is not None and found.info is not None:
+                text = f"{found.dtc.code} - {found.info.title}\n\n{found.info.description}"
+                if found.info.common_causes:
+                    text += "\n\nCausas comunes: " + "; ".join(found.info.common_causes)
+                if found.info.suggested_checks:
+                    text += "\n\nRevisar: " + "; ".join(found.info.suggested_checks)
+                self.scan_detail.insert("1.0", text)
+            elif found is not None:
+                self.scan_detail.insert("1.0", f"{found.dtc.code}: no está en la base local todavía.")
+        self.scan_detail.configure(state="disabled")
+
+    def _clear_scanned_dtcs(self) -> None:
+        if self.session is None or not self._last_scan or not self._last_scan.dtcs:
+            return
+        codes = ", ".join(sorted({f.dtc.code for f in self._last_scan.dtcs}))
+
+        def do_clear():
+            def job():
+                self.session.obd2.clear_dtcs()
+
+            def on_success(_result):
+                self._set_status("Fallas borradas en la ECU. Re-escaneando para verificar...", "ok")
+                self._start_scan()  # re-read so you see what actually cleared and what came back
+
+            self._run(job, on_success, busy_widgets=(self.scan_clear_btn,))
+
+        self._confirm_dialog(
+            "Borrar fallas en la ECU",
+            f"Se van a borrar de la ECU real: {codes}.\n\n"
+            "Esto reinicia el testigo (MIL) y los monitores de emisiones - el auto va a reportar "
+            "\"no listo\" hasta completar un ciclo de manejo. Si la causa sigue presente, el código vuelve.",
+            "BORRAR",
+            do_clear,
+        )
 
     # ------------------------------------------------------------------
     # DTC page
@@ -525,6 +673,38 @@ class VagscanApp(ttk.Frame):
         elif values and not self.port_var.get():
             self.port_var.set(values[0])
 
+    def _autodetect_adapter(self, *, then_connect: bool = True) -> None:
+        """Talk to each serial port in turn and see which one answers like an
+        ELM327, instead of making the user guess which COM port it is."""
+        if self.session is not None:
+            return
+        self._refresh_ports()
+        self._set_status("Buscando el adaptador ELM327...", "info")
+        self.scan_progress_label.configure(text="Buscando el adaptador ELM327...")
+
+        def job():
+            return autodetect_elm327()
+
+        def on_success(found):
+            if found is None:
+                self._set_status(
+                    "No se encontró ningún ELM327. ¿Está enchufado al auto y emparejado por Bluetooth?", "warn"
+                )
+                self.scan_progress_label.configure(
+                    text="No se encontró el adaptador. Enchufálo al conector OBD, emparejá el Bluetooth y tocá "
+                    "\"Buscar adaptador\"."
+                )
+                return
+            self.port_var.set(found.device)
+            self._set_status(f"Adaptador encontrado en {found.device}: {found.identity}", "ok")
+            if then_connect:
+                self._connect()
+
+        def on_error(exc):
+            self._set_status(f"Error buscando el adaptador: {exc}", "error")
+
+        self._run(job, on_success, on_error, busy_widgets=(self.detect_btn, self.connect_btn))
+
     def _toggle_connect(self) -> None:
         if self.session is None:
             self._connect()
@@ -545,8 +725,8 @@ class VagscanApp(ttk.Frame):
         def on_success(session):
             self.session = session
             self._set_connected_state(True)
-            self._set_status(f"Conectado a {port}.", "ok")
-            self._read_vehicle_info()
+            self._set_status(f"Conectado a {port}. Tocá ESCANEAR para leer todo el vehículo.", "ok")
+            self.scan_progress_label.configure(text="Conectado. Tocá ESCANEAR para leer todo el vehículo.")
 
         def on_error(exc):
             self.connect_btn.configure(state="normal")
@@ -568,7 +748,7 @@ class VagscanApp(ttk.Frame):
         self.status_label.configure(text="Conectado" if connected else "Desconectado", style="StatusOk.TLabel" if connected else "StatusBad.TLabel")
         self.connect_btn.configure(text="Desconectar" if connected else "Conectar", state="normal")
         for widget in (
-            self.refresh_info_btn,
+            self.scan_btn,
             self.dtc_read_btn,
             self.dtc_clear_btn,
             self.live_toggle_btn,
@@ -593,8 +773,31 @@ class VagscanApp(ttk.Frame):
     # shared helpers
     # ------------------------------------------------------------------
     def _poll_worker(self) -> None:
-        self.worker.poll()
-        self.root.after(30, self._poll_worker)
+        # The reschedule has to survive anything raised in here: if this
+        # callback ever dies, the after() chain stops and every background
+        # result silently stops being delivered - the app looks frozen with
+        # no error anywhere.
+        try:
+            self.worker.poll()
+            self._drain_progress()
+        except Exception as exc:  # noqa: BLE001 - keeping the loop alive matters more
+            logger.exception("Error draining background results")
+            self._set_status(f"Error interno: {exc}", "error")
+        finally:
+            self.root.after(30, self._poll_worker)
+
+    def _drain_progress(self) -> None:
+        latest = None
+        while True:
+            try:
+                latest = self._progress_queue.get_nowait()
+            except queue.Empty:
+                break
+        if latest is None:
+            return
+        label, current, total = latest
+        self.scan_progress.configure(value=(current / total) * 100 if total else 0)
+        self.scan_progress_label.configure(text=f"{label}... ({current}/{total})")
 
     def _run(self, job, on_success=None, on_error=None, busy_widgets=()):
         for w in busy_widgets:

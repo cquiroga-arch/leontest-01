@@ -24,11 +24,18 @@ isn't tied to the CLI.
   engineering guidance, not a recitation of VAG's internal fault-code
   catalog, and are meant to be filled in with confirmed codes as you scan
   this specific car.
-- **Desktop GUI (`vagscan.gui`)**: the friendly front end - sidebar
-  navigation, a connection bar, a live dashboard with gauges, a DTC table
-  with descriptions/causes/checks, and the VAG-advanced tools, all with the
-  same confirmation-phrase safety gates as the CLI. This is what most
-  people should actually run - see screenshots below.
+- **Desktop GUI (`vagscan.gui`)**: the friendly front end and what most
+  people should run. Auto-detects the adapter, one **ESCANEAR** button that
+  sweeps the whole car, results with descriptions/causes/checks, live
+  gauges, and clearing that acts on the real ECU behind a
+  confirmation-phrase gate - see below.
+- **Adapter auto-detection (`vagscan.transport.discovery`)**: probes each
+  serial port (including `/dev/rfcomm*`, which some distros don't
+  enumerate) and identifies the one that answers as an ELM327, instead of
+  making you guess which COM port it landed on.
+- **Full scan (`vagscan.app.full_scan`)**: one pass over generic OBD-II
+  plus every known VAG module address, reporting partial results - a silent
+  module or an unsupported mode is a normal outcome, not an aborted scan.
 - **CLI (`vagscan.app.cli`)**: the same functionality as a scriptable
   terminal tool - `ports`, `identify`, `live`, `dtc-read`, `dtc-clear`,
   `vin`, `vag-modules`, `vag-discover`, `vag-log`, `vag-clear`.
@@ -71,15 +78,37 @@ procedure into for your own vehicle - nothing is hardcoded or guessed here.
 - The final call on any reading is yours (the human at the keyboard) - this
   tool surfaces data, it doesn't make diagnostic decisions.
 
+## How you actually use it
+
+1. Plug the ELM327 into the car's OBD port, ignition on.
+2. Pair it once in the OS's Bluetooth settings (it becomes a COM port /
+   `/dev/rfcommN`).
+3. Open the app. It probes the serial ports on startup and connects to
+   whichever one answers like an ELM327 - you don't pick a port by hand
+   (there's a "Buscar adaptador" button to redo it, and the dropdown is
+   still there as a manual override).
+4. Hit **ESCANEAR**. It reads the engine over generic OBD-II
+   (stored/pending/permanent codes + VIN) and then asks each known VAG
+   module address whether it's there, with a progress bar the whole way.
+5. Results come back in one tree: every code with its description, likely
+   causes and what to check, plus which modules answered.
+6. **Borrar las fallas encontradas** clears them on the real ECU (OBD-II
+   Mode 04) after you type the confirmation phrase, then re-scans
+   automatically so you can see what actually cleared and what came back.
+
 ## Screenshots (GUI)
 
-| Panel | Fallas (DTC) |
+| Escaneo completo | Confirmación antes de borrar |
 |---|---|
-| ![Panel](docs/screenshots/panel.png) | ![DTC](docs/screenshots/dtc.png) |
+| ![Scan](docs/screenshots/scan.png) | ![Clear](docs/screenshots/clear-confirm.png) |
 
-| En vivo | VAG avanzado |
+| Después de borrar | En vivo |
 |---|---|
-| ![Live](docs/screenshots/live.png) | ![VAG](docs/screenshots/vag.png) |
+| ![After clear](docs/screenshots/after-clear.png) | ![Live](docs/screenshots/live.png) |
+
+| Fallas (detalle) | VAG avanzado |
+|---|---|
+| ![DTC](docs/screenshots/dtc.png) | ![VAG](docs/screenshots/vag.png) |
 
 These were taken against a scripted ELM327 emulator (no car needed to see
 the UI work) - see the "Tests" section below for how that emulator works.
@@ -122,7 +151,7 @@ vagscan --port COM5 vag-log --seconds 30 --out capture.log
 pytest
 ```
 
-42 tests run against an in-memory fake transport (`tests/conftest.py`) - no
+55 tests run against an in-memory fake transport (`tests/conftest.py`) - no
 hardware required. They validate our own protocol/framing logic (driver AT
 sequencing, OBD2 PID/DTC decoding, TP2.0 single-frame send/receive, KWP2000
 positive/negative response handling, the GUI's background IOWorker), not
