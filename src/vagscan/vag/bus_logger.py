@@ -79,20 +79,25 @@ class BusLogger:
         """ATMA (monitor all) prints every frame it sees until any byte is
         sent to the adapter; we let it run for `seconds` then send a space
         to stop it and read back whatever accumulated.
+
+        Purely passive: monitor mode transmits nothing onto the vehicle bus.
+        The whole capture is one transaction, because *any* byte reaching
+        the adapter ends monitor mode - including the keep-alive watchdog's.
         """
         self.prepare()
         transport = self.driver._transport  # noqa: SLF001
-        transport.write(b"ATMA\r")
-        deadline = time.monotonic() + seconds
-        buf = b""
-        while time.monotonic() < deadline:
-            remaining = deadline - time.monotonic()
-            buf += transport.read_until(b"\n", timeout=min(remaining, 0.5))
-        transport.write(b" ")  # any character halts ATMA
-        try:
-            buf += transport.read_until(b">", timeout=1.0)
-        except ELM327Error:
-            pass
+        with transport.transaction():
+            transport.write(b"ATMA\r")
+            deadline = time.monotonic() + seconds
+            buf = b""
+            while time.monotonic() < deadline:
+                remaining = deadline - time.monotonic()
+                buf += transport.read_until(b"\n", timeout=min(remaining, 0.5))
+            transport.write(b" ")  # any character halts ATMA
+            try:
+                buf += transport.read_until(b">", timeout=1.0)
+            except ELM327Error:
+                pass
         new_frames = []
         for line in buf.decode("ascii", errors="replace").splitlines():
             frame = parse_raw_frame(line)
@@ -100,6 +105,11 @@ class BusLogger:
                 new_frames.append(frame)
         self.frames.extend(new_frames)
         return new_frames
+
+    def observed_can_ids(self, listen_seconds: float = 2.0) -> set[int]:
+        """Passively watch the bus and report which CAN IDs are actually in
+        use by the car right now. Transmits nothing."""
+        return {frame.can_id for frame in self.capture_for(listen_seconds)}
 
     def to_log_lines(self) -> list[str]:
         return [f"{f.timestamp:.3f} {f.can_id_hex:>4} {f.data.hex().upper()}" for f in self.frames]

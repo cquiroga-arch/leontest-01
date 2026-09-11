@@ -30,7 +30,9 @@ def _session_with(responses, default="OK"):
     return VagscanSession(
         driver=driver,
         obd2=OBD2Service(driver),
-        tp20=TP20Client(driver),
+        # Short listen window: the bus-safety interlock listens before it
+        # transmits, and tests shouldn't pay the real 2s for that.
+        tp20=TP20Client(driver, bus_listen_seconds=0.05),
         bus_logger=BusLogger(driver),
         dtc_db=DtcDatabase.load_default(),
     ), transport
@@ -120,6 +122,35 @@ def test_scan_can_be_cancelled_midway():
     result = scanner.run(should_stop=should_stop)
     assert any("cancelado" in w.lower() for w in result.warnings)
     assert len(result.modules) < len(MODULE_ADDRESSES)
+
+
+def test_bus_safety_refusal_stops_the_sweep_once_instead_of_per_module():
+    """The interlock's verdict is about the car's bus, so a refusal must
+    abort the sweep with one explanation - not repeat itself 17 times."""
+    session, transport = _session_with(
+        {
+            "03": "NO DATA",
+            "07": "NO DATA",
+            "0A": "NO DATA",
+            # A real module is broadcasting on the ID the probe would use.
+            "ATMA": "200 01 02 03 04 05 06 07",
+        }
+    )
+    result = FullScanner(session, scan_vag_modules=True).run()
+
+    assert result.modules == []
+    assert len([w for w in result.warnings if "0x200" in w]) == 1
+    assert not any(w.endswith("C0FFFFFFFFFFFF") for w in transport.written)
+
+
+def test_vag_module_sweep_is_off_by_default():
+    """A default scan must be nothing but standard OBD-II traffic."""
+    session, transport = _session_with({"03": "NO DATA", "07": "NO DATA", "0A": "NO DATA"})
+    result = FullScanner(session).run()
+
+    assert result.modules == []
+    assert not any(w.endswith("C0FFFFFFFFFFFF") for w in transport.written)
+    assert "ATMA" not in transport.written  # not even the listen window
 
 
 def test_summary_line_reads_naturally_for_both_outcomes():

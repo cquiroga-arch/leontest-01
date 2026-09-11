@@ -18,6 +18,7 @@ from vagscan.elm327.driver import ELM327Error
 from vagscan.obd2.service import DTC
 from vagscan.vag.addresses import MODULE_ADDRESSES
 from vagscan.vag.bus_logger import CapturedFrame
+from vagscan.vag.tp20 import BusSafetyError
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +81,12 @@ class FullScanner:
         ("Leyendo fallas permanentes", "read_permanent_dtcs", "Permanente"),
     ]
 
-    def __init__(self, session, *, scan_vag_modules: bool = True, module_timeout: float = 0.6):
+    def __init__(self, session, *, scan_vag_modules: bool = False, module_timeout: float = 0.6):
+        """`scan_vag_modules` defaults off on purpose: with it off, a scan is
+        pure standard OBD-II - the same requests any commercial scan tool
+        makes, nothing non-standard on the bus. Turning it on enables the
+        experimental TP2.0 probe, which is gated further by the
+        listen-before-transmit interlock in TP20Client."""
         self._session = session
         self._scan_vag_modules = scan_vag_modules
         self._module_timeout = module_timeout
@@ -122,7 +128,15 @@ class FullScanner:
                     return result
                 step += 1
                 report(f"Consultando módulo {module.address} - {module.name}")
-                result.modules.append(self._probe_module(module))
+                try:
+                    result.modules.append(self._probe_module(module))
+                except BusSafetyError as exc:
+                    # The interlock's verdict is about this car's bus, not
+                    # this module - retrying it 17 times would just print the
+                    # same refusal 17 times.
+                    result.warnings.append(str(exc))
+                    result.modules.clear()
+                    break
 
         report("Escaneo completo")
         return result
@@ -158,6 +172,8 @@ class FullScanner:
     def _probe_module(self, module) -> ModuleProbe:
         try:
             frames = self._session.tp20.discover_channel(module.address, timeout=self._module_timeout)
+        except BusSafetyError:
+            raise  # the caller stops the whole sweep on this one
         except Exception as exc:  # noqa: BLE001 - a silent module is a normal result, not a failure
             return ModuleProbe(address=module.address, name=module.name, responded=False, note=str(exc))
         if frames:

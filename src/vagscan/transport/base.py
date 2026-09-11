@@ -6,6 +6,7 @@ hardware involved.
 from __future__ import annotations
 
 import abc
+import contextlib
 
 
 class TransportError(Exception):
@@ -42,6 +43,23 @@ class Transport(abc.ABC):
         """Read until `terminator` is seen or `timeout` seconds elapse.
         Returns whatever was read (may be a partial/empty read on timeout).
         """
+
+    @contextlib.contextmanager
+    def transaction(self):
+        """Held across a full request+response exchange.
+
+        The ELM327 is strictly half-duplex: one command, one reply, and it
+        has no way to tell you which reply belongs to which command. So any
+        second writer (the keep-alive watchdog, most realistically) that
+        slips a byte in while someone is waiting for a reply desynchronizes
+        the stream, and from then on answers get attributed to the wrong
+        question - in a tool that reports fault codes and offers to clear
+        them, that's not an acceptable failure mode.
+
+        Transports with no concurrent writers can leave this as the no-op it
+        is here.
+        """
+        yield
 
     def __enter__(self) -> "Transport":
         self.open()

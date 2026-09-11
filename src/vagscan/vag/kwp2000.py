@@ -88,11 +88,29 @@ class KWP2000Client:
         channel is open to, airbag/SRS included if that's the target."""
         self._request(0x14, group_of_dtc)
 
-    def security_access_request_seed(self, level: int) -> bytes:
+    def security_access_request_seed(self, level: int, *, i_understand_lockout_risk: bool = False) -> bytes:
+        self._check_security_access_opt_in(i_understand_lockout_risk)
         return self._request(0x27, bytes([level]))
 
-    def security_access_send_key(self, level: int, key: bytes) -> None:
+    def security_access_send_key(self, level: int, key: bytes, *, i_understand_lockout_risk: bool = False) -> None:
+        self._check_security_access_opt_in(i_understand_lockout_risk)
         self._request(0x27, bytes([level + 1]) + key)
+
+    @staticmethod
+    def _check_security_access_opt_in(opted_in: bool) -> None:
+        """Security access is the one operation here that can leave a module
+        worse than it started: a wrong key increments an attempt counter, and
+        enough wrong keys put the module into a lockout that needs a timed
+        wait (NRC 0x37) or dealer-level tooling to come out of. Nothing in
+        the app or CLI calls this - it exists so someone with a documented
+        procedure for their own vehicle can use it deliberately, which is
+        what the explicit flag is for."""
+        if not opted_in:
+            raise KWP2000Error(
+                "Security access no ejecutado: puede dejar el módulo bloqueado si la clave es incorrecta. "
+                "Requiere pasar i_understand_lockout_risk=True desde código propio, con un procedimiento "
+                "documentado para tu vehículo. No se invoca desde la app ni desde la CLI."
+            )
 
     def tester_present(self) -> None:
         try:

@@ -76,8 +76,10 @@ class ELM327Driver:
         if not self._transport.is_open:
             self._transport.open()
         try:
-            self._transport.write(command.strip().encode("ascii") + b"\r")
-            raw = self._transport.read_until(PROMPT, timeout=timeout)
+            # write+read is one indivisible exchange - see Transport.transaction
+            with self._transport.transaction():
+                self._transport.write(command.strip().encode("ascii") + b"\r")
+                raw = self._transport.read_until(PROMPT, timeout=timeout)
         except TransportClosed as exc:
             raise ELM327Timeout(f"transport closed while waiting for reply to {command!r}") from exc
         if not raw:

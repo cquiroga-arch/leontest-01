@@ -31,7 +31,7 @@ def test_discover_channel_returns_candidate_frames():
     )
     transport.open()
     driver = ELM327Driver(transport)
-    client = TP20Client(driver)
+    client = TP20Client(driver, bus_listen_seconds=0.05)
     frames = client.discover_channel("01", timeout=1.0)
     assert len(frames) == 1
     assert frames[0].can_id_hex == "204"
@@ -42,7 +42,7 @@ def test_discover_channel_empty_when_no_reply():
     transport = FakeTransport({"01C0FFFFFFFFFFFF": "NO DATA"})
     transport.open()
     driver = ELM327Driver(transport)
-    client = TP20Client(driver)
+    client = TP20Client(driver, bus_listen_seconds=0.05)
     assert client.discover_channel("01") == []
 
 
@@ -55,7 +55,7 @@ def test_send_message_round_trip():
     )
     transport.open()
     driver = ELM327Driver(transport)
-    client = TP20Client(driver)
+    client = TP20Client(driver, bus_listen_seconds=0.05)
     channel = client.open_channel("01", tx_id=0x300, rx_id=0x310)
     reply = client.send_message(channel, bytes([0x10, 0x89]))
     assert reply == bytes([0x50, 0x89])
@@ -66,7 +66,7 @@ def test_send_message_oversized_payload_raises_not_implemented():
     transport = FakeTransport()
     transport.open()
     driver = ELM327Driver(transport)
-    client = TP20Client(driver)
+    client = TP20Client(driver, bus_listen_seconds=0.05)
     channel = client.open_channel("01", tx_id=0x300, rx_id=0x310)
     try:
         client.send_message(channel, bytes(range(8)))

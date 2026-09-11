@@ -11,6 +11,7 @@ you're standing next to the car.
 """
 from __future__ import annotations
 
+import contextlib
 import logging
 import threading
 import time
@@ -44,11 +45,23 @@ class SerialTransport(Transport):
         self._config = config
         self._serial: serial.Serial | None = None
         self._lock = threading.RLock()
+        # Guards a whole request+response exchange (see Transport.transaction).
+        # _lock only guards individual reads/writes, which isn't enough: the
+        # blocking read deliberately runs without it.
+        self._txn_lock = threading.RLock()
         self._enable_watchdog = enable_watchdog
         self._watchdog_thread: threading.Thread | None = None
         self._stop_watchdog = threading.Event()
         self._last_activity = 0.0
         self._on_reconnect = None  # optional callback(transport) after a successful reconnect
+
+    @contextlib.contextmanager
+    def transaction(self):
+        self._txn_lock.acquire()
+        try:
+            yield
+        finally:
+            self._txn_lock.release()
 
     def set_reconnect_callback(self, callback) -> None:
         """Called (with `self`) after the watchdog re-establishes a dropped
@@ -153,12 +166,20 @@ class SerialTransport(Transport):
                     backoff = min(backoff * 2, cfg.reconnect_backoff_max)
 
     def _probe(self) -> bool:
+        # Never interleave with an exchange already in flight: an injected
+        # byte would desynchronize the half-duplex stream and start pairing
+        # replies with the wrong requests. A transaction being in progress
+        # is itself proof the link is alive, so there's nothing to check.
+        if not self._txn_lock.acquire(blocking=False):
+            return True
         try:
             self.write(self._config.watchdog_probe)
             reply = self.read_until(b">", timeout=self._config.read_timeout)
             return len(reply) > 0
         except TransportError:
             return False
+        finally:
+            self._txn_lock.release()
 
     def _reconnect(self, backoff: float) -> bool:
         with self._lock:

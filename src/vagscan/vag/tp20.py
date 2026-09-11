@@ -50,6 +50,11 @@ class TP20Timeout(TP20Error):
     pass
 
 
+class BusSafetyError(TP20Error):
+    """Raised instead of transmitting when the CAN ID we were about to use
+    is already being broadcast by a real module on this car."""
+
+
 @dataclass(frozen=True)
 class TP20Channel:
     module_address: str
@@ -61,10 +66,45 @@ class TP20Channel:
 
 
 class TP20Client:
-    def __init__(self, driver: ELM327Driver, bus_logger: BusLogger | None = None):
+    def __init__(self, driver: ELM327Driver, bus_logger: BusLogger | None = None, *, bus_listen_seconds: float = 2.0):
         self._driver = driver
         self._logger = bus_logger or BusLogger(driver)
         self._channel: TP20Channel | None = None
+        self._verified_free_ids: set[int] = set()
+        self._observed_ids: set[int] | None = None
+        self._bus_listen_seconds = bus_listen_seconds
+
+    def assert_transmit_id_is_free(self, can_id: int, *, listen_seconds: float | None = None) -> set[int]:
+        """Listen before transmitting.
+
+        Everything else this tool sends is standard OBD-II, addressed the way
+        every scan tool addresses it. The TP2.0 probe is the one exception:
+        it puts a frame on an ID we *believe* is the diagnostic channel-setup
+        broadcast, based on public reverse-engineering rather than a spec we
+        can check. If that belief is wrong for this particular car and the ID
+        actually belongs to some module's periodic traffic, we'd be a second
+        transmitter on an ID a real receiver is consuming.
+
+        So: watch the bus first, and refuse to transmit on an ID that's
+        already in use. Returns every CAN ID observed, which also tells the
+        caller the bus is genuinely alive.
+        """
+        listen_seconds = self._bus_listen_seconds if listen_seconds is None else listen_seconds
+        if self._observed_ids is None:
+            self._observed_ids = self._logger.observed_can_ids(listen_seconds)
+        if can_id in self._observed_ids:
+            raise BusSafetyError(
+                f"No se transmitió nada: el ID CAN 0x{can_id:03X} ya lo está usando un módulo real de este "
+                f"auto (se lo vio en el bus durante {listen_seconds:g}s). Transmitir ahí sería pisar tráfico "
+                "legítimo, así que la sonda TP2.0 queda deshabilitada para este vehículo."
+            )
+        self._verified_free_ids.add(can_id)
+        return self._observed_ids
+
+    def forget_bus_observation(self) -> None:
+        """Drop the cached bus snapshot so the next transmit re-listens."""
+        self._observed_ids = None
+        self._verified_free_ids.clear()
 
     def discover_channel(self, module_address: str, *, timeout: float = 1.0) -> list[CapturedFrame]:
         """Send the best-guess TP2.0 channel-setup probe for `module_address`
@@ -73,6 +113,8 @@ class TP20Client:
         module didn't answer at all (wrong address, module asleep/absent,
         or the guessed probe format doesn't match what it expects)."""
         addr = int(module_address, 16)
+        # Interlock: never the first thing we do on a car is transmit.
+        self.assert_transmit_id_is_free(int(CHANNEL_SETUP_BROADCAST_ID, 16))
         self._logger.prepare()
         self._driver.set_header(CHANNEL_SETUP_BROADCAST_ID)
         try:
@@ -119,6 +161,7 @@ class TP20Client:
                 "Capture a known multi-frame exchange on this car first and encode the "
                 "real block-size/ack byte layout here rather than guessing it."
             )
+        self.assert_transmit_id_is_free(channel.tx_id)
         self._driver.set_header(f"{channel.tx_id:03X}")
         frame_hex = f"{len(payload):02X}" + payload.hex().upper()
         frame_hex = frame_hex.ljust(16, "F")  # pad to 8 bytes like the setup probe

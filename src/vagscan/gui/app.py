@@ -45,6 +45,22 @@ Capa OBD-II genérica (Escaneo, Fallas, En vivo): estándar, funciona en
 cualquier auto compatible OBD-II. Leer y borrar fallas del motor por acá
 sí actúa sobre la ECU real (Mode 03/04 de OBD-II).
 
+Qué manda esta app al bus del auto:
+- Escaneo normal (con la casilla VAG sin tildar): SOLO pedidos de lectura
+  OBD-II estándar (03, 07, 0A, 0902, 01xx). Lo mismo que manda cualquier
+  escáner comercial. Nada más.
+- Borrar fallas: el comando estándar 04. Es la única escritura, es
+  reversible (si la causa sigue, el código vuelve) y pide frase de
+  confirmación.
+- Sonda de módulos VAG (casilla opcional): una trama de 8 bytes por
+  módulo, ~17 en total. Antes de transmitir, la app escucha el bus y si
+  el ID que iba a usar ya lo está usando un módulo real del auto, NO
+  transmite nada y cancela la sonda.
+
+No hay flasheo, ni codificación, ni escritura de adaptaciones, ni nada de
+inmovilizador. El "security access" (lo único que podría dejar un módulo
+bloqueado por reintentos fallidos) no se invoca desde ningún lado.
+
 Capa VAG avanzada (pestaña "VAG avanzado"): EXPERIMENTAL. El Simos 7.1
 de este auto habla el protocolo propietario de VAG (KWP2000 sobre CAN,
 TP2.0), que el chip ELM327 no soporta de fábrica. Los IDs de canal que
@@ -180,10 +196,21 @@ class VagscanApp(ttk.Frame):
         page = ttk.Frame(parent)
 
         title_row = ttk.Frame(page)
-        title_row.pack(fill="x", pady=(0, 12))
+        title_row.pack(fill="x", pady=(0, 4))
         ttk.Label(title_row, text="Escaneo del vehículo", font=(theme.FONT_FAMILY, 14, "bold")).pack(side="left")
         self.scan_btn = ttk.Button(title_row, text="ESCANEAR", style="Accent.TButton", command=self._start_scan)
         self.scan_btn.pack(side="right")
+
+        # Off by default: with this unchecked a scan is nothing but standard
+        # OBD-II requests, which is what any commercial scan tool sends.
+        self.scan_vag_var = tk.BooleanVar(value=False)
+        option_row = ttk.Frame(page)
+        option_row.pack(fill="x", pady=(0, 10))
+        ttk.Checkbutton(
+            option_row,
+            text="Además, sondear módulos VAG (experimental: emite tramas propias al bus)",
+            variable=self.scan_vag_var,
+        ).pack(side="left")
 
         cards = ttk.Frame(page)
         cards.pack(fill="x")
@@ -246,7 +273,7 @@ class VagscanApp(ttk.Frame):
         self.scan_progress.configure(value=0)
         self._last_scan = None
 
-        scanner = FullScanner(self.session)
+        scanner = FullScanner(self.session, scan_vag_modules=self.scan_vag_var.get())
 
         def job():
             # Note the lambda: Queue.put's own signature is (item, block,

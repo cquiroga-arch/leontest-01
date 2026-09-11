@@ -63,6 +63,45 @@ seed-to-key algorithm. `security_access_*` in `kwp2000.py` is a bare
 request/response mechanism you can plug a manufacturer-documented
 procedure into for your own vehicle - nothing is hardcoded or guessed here.
 
+## What this actually puts on the car's bus
+
+Audited by tracing every code path that can reach the vehicle, and verified
+against an emulator by logging the wire. `AT*` commands configure the
+adapter locally and never reach the bus; only these five things do:
+
+| Traffic | Kind | Risk |
+|---|---|---|
+| `01xx` (Mode 01) | standard read | none - what every scan tool sends |
+| `03` / `07` / `0A` | standard read | none |
+| `0902` (VIN) | standard read | none |
+| `04` (clear DTCs) | standard **write** | reversible; resets MIL + readiness monitors. Gated behind a typed confirmation phrase |
+| TP2.0 probe frame | **non-standard** | the only real question mark - see below |
+
+A default scan is **only** the standard reads. The VAG module sweep is a
+checkbox that starts unchecked.
+
+Volume is a non-issue: a full module sweep is one 8-byte frame per module,
+~17 frames spread over ~17 seconds, against a bus that normally carries
+thousands of frames per second. There is no path in this code that can
+flood the bus.
+
+**Listen before transmit.** The TP2.0 probe transmits on CAN ID 0x200
+because that is what public reverse-engineering says the diagnostic
+channel-setup broadcast is - not something anyone here can verify against a
+spec. If that's wrong for a given car and 0x200 actually carries a module's
+real traffic, transmitting would put a second sender on an ID a real
+receiver is consuming. So `TP20Client` passively monitors the bus first and
+**refuses to transmit** on an ID already in use, aborting the sweep with one
+explanation. Verified against a simulated car with 0x200 occupied: zero
+probe frames went out.
+
+**Security access (KWP2000 service 0x27) is the one operation here that
+could leave a module worse than it started** - wrong keys increment a
+lockout counter. Nothing in the app or the CLI calls it, and it now refuses
+to run without an explicit `i_understand_lockout_risk=True` from your own
+code. There is no flashing, no coding, no adaptation writing, and no
+immobilizer code anywhere in this project.
+
 ## Safety notes
 
 - Clearing a DTC (generic `dtc-clear` or `vag-clear`) resets the MIL and

@@ -11,7 +11,7 @@ def _client_on_channel(responses):
     transport = FakeTransport(responses)
     transport.open()
     driver = ELM327Driver(transport)
-    tp20 = TP20Client(driver)
+    tp20 = TP20Client(driver, bus_listen_seconds=0.05)
     channel = tp20.open_channel("01", tx_id=0x300, rx_id=0x310)
     return KWP2000Client(tp20, channel), transport
 
