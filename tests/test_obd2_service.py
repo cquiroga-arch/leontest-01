@@ -1,6 +1,6 @@
 import pytest
 
-from vagscan.elm327.driver import ELM327Driver
+from vagscan.elm327.driver import ELM327Driver, ELM327Error
 from vagscan.obd2.service import OBD2Service, ObdRequestError, decode_dtcs
 
 from .conftest import FakeTransport
@@ -55,6 +55,22 @@ def test_read_stored_dtcs():
     service = _service_with({"03": "43 01 33 02 71"})
     codes = [d.code for d in service.read_stored_dtcs()]
     assert codes == ["P0133", "P0271"]
+
+
+def test_read_dtcs_treats_no_data_as_empty_not_an_error():
+    """"NO DATA" is the adapter's normal reply when there are zero DTCs of
+    this type - very common for Mode 07/0A on a healthy car - and must not
+    raise, or every clean-car scan would crash reading pending/permanent codes."""
+    service = _service_with({"03": "NO DATA", "07": "NO DATA", "0A": "NO DATA"})
+    assert service.read_stored_dtcs() == []
+    assert service.read_pending_dtcs() == []
+    assert service.read_permanent_dtcs() == []
+
+
+def test_read_dtcs_still_raises_on_other_errors():
+    service = _service_with({"03": "BUS ERROR"})
+    with pytest.raises(ELM327Error):
+        service.read_stored_dtcs()
 
 
 def test_read_vin():

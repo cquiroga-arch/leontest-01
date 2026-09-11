@@ -109,17 +109,27 @@ class OBD2Service:
         return out
 
     # -- Mode 03/07/0A: DTCs ------------------------------------------------
+    def _read_dtc_mode(self, request: str, mode_ack: str) -> list[DTC]:
+        """"NO DATA" from the adapter is the normal, expected reply when
+        there simply are zero DTCs of this type (very common for Mode
+        07/0A) - it's an ELM327Error token, but it isn't a fault, so it's
+        treated as an empty result rather than propagated."""
+        try:
+            response = self._driver.send_command(request)
+        except ELM327Error as exc:
+            if "no data" in str(exc).lower():
+                return []
+            raise
+        return decode_dtcs(_extract_bytes(response, expect_mode_ack=mode_ack))
+
     def read_stored_dtcs(self) -> list[DTC]:
-        response = self._driver.send_command("03")
-        return decode_dtcs(_extract_bytes(response, expect_mode_ack="43"))
+        return self._read_dtc_mode("03", "43")
 
     def read_pending_dtcs(self) -> list[DTC]:
-        response = self._driver.send_command("07")
-        return decode_dtcs(_extract_bytes(response, expect_mode_ack="47"))
+        return self._read_dtc_mode("07", "47")
 
     def read_permanent_dtcs(self) -> list[DTC]:
-        response = self._driver.send_command("0A")
-        return decode_dtcs(_extract_bytes(response, expect_mode_ack="4A"))
+        return self._read_dtc_mode("0A", "4A")
 
     # -- Mode 04: clear DTCs + reset readiness monitors --------------------
     def clear_dtcs(self) -> None:

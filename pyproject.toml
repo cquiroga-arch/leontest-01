@@ -16,6 +16,7 @@ dev = [
 
 [project.scripts]
 vagscan = "vagscan.app.cli:main"
+vagscan-gui = "vagscan.gui.app:main"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]

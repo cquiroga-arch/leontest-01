@@ -24,8 +24,14 @@ isn't tied to the CLI.
   engineering guidance, not a recitation of VAG's internal fault-code
   catalog, and are meant to be filled in with confirmed codes as you scan
   this specific car.
-- **CLI (`vagscan.app.cli`)**: `ports`, `identify`, `live`, `dtc-read`,
-  `dtc-clear`, `vin`, `vag-modules`, `vag-discover`, `vag-log`, `vag-clear`.
+- **Desktop GUI (`vagscan.gui`)**: the friendly front end - sidebar
+  navigation, a connection bar, a live dashboard with gauges, a DTC table
+  with descriptions/causes/checks, and the VAG-advanced tools, all with the
+  same confirmation-phrase safety gates as the CLI. This is what most
+  people should actually run - see screenshots below.
+- **CLI (`vagscan.app.cli`)**: the same functionality as a scriptable
+  terminal tool - `ports`, `identify`, `live`, `dtc-read`, `dtc-clear`,
+  `vin`, `vag-modules`, `vag-discover`, `vag-log`, `vag-clear`.
 
 ## What's experimental (`vagscan.vag`) and why
 
@@ -65,6 +71,19 @@ procedure into for your own vehicle - nothing is hardcoded or guessed here.
 - The final call on any reading is yours (the human at the keyboard) - this
   tool surfaces data, it doesn't make diagnostic decisions.
 
+## Screenshots (GUI)
+
+| Panel | Fallas (DTC) |
+|---|---|
+| ![Panel](docs/screenshots/panel.png) | ![DTC](docs/screenshots/dtc.png) |
+
+| En vivo | VAG avanzado |
+|---|---|
+| ![Live](docs/screenshots/live.png) | ![VAG](docs/screenshots/vag.png) |
+
+These were taken against a scripted ELM327 emulator (no car needed to see
+the UI work) - see the "Tests" section below for how that emulator works.
+
 ## Setup
 
 ```bash
@@ -73,8 +92,20 @@ source .venv/bin/activate  # or .venv\Scripts\activate on Windows
 pip install -e ".[dev]"
 ```
 
+Tkinter (the GUI toolkit) ships with the official python.org installers for
+Windows/macOS, so most people already have it. On Linux, if `vagscan-gui`
+complains it's missing, install your distro's package first (Debian/Ubuntu:
+`sudo apt install python3-tk`).
+
 Pair the ELM327 at the OS level first (Windows Settings > Bluetooth &
-devices, or `bluetoothctl` on Linux), then:
+devices, or `bluetoothctl` on Linux) - it'll show up as a serial/COM port.
+Then either:
+
+```bash
+vagscan-gui                       # the desktop app - pick the port from the dropdown and hit Conectar
+```
+
+or, for scripting/automation, the CLI:
 
 ```bash
 vagscan ports                     # find the paired adapter's serial port
@@ -91,8 +122,12 @@ vagscan --port COM5 vag-log --seconds 30 --out capture.log
 pytest
 ```
 
-All 35+ tests run against an in-memory fake transport (`tests/conftest.py`)
-- no hardware required. They validate our own protocol/framing logic
-(driver AT sequencing, OBD2 PID/DTC decoding, TP2.0 single-frame
-send/receive, KWP2000 positive/negative response handling), not the real
-ECU's behavior, which can only be confirmed against the actual car.
+42 tests run against an in-memory fake transport (`tests/conftest.py`) - no
+hardware required. They validate our own protocol/framing logic (driver AT
+sequencing, OBD2 PID/DTC decoding, TP2.0 single-frame send/receive, KWP2000
+positive/negative response handling, the GUI's background IOWorker), not
+the real ECU's behavior, which can only be confirmed against the actual
+car. The GUI itself was additionally driven end-to-end (connect, read
+DTCs, stream live data, navigate every tab) against a scripted fake
+ELM327 under a virtual display, which is how the screenshots above were
+produced.
