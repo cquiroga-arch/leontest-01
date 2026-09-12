@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from vagscan.dtc_db import DtcDatabase
-from vagscan.elm327 import ELM327Driver, OBDProtocol
+from vagscan.elm327 import AdapterCapabilities, ELM327Driver, OBDProtocol
 from vagscan.obd2 import OBD2Service
 from vagscan.transport import SerialTransport
 from vagscan.transport.serial_port import SerialTransportConfig
@@ -20,6 +20,14 @@ class VagscanSession:
     tp20: TP20Client
     bus_logger: BusLogger
     dtc_db: DtcDatabase
+    capabilities: AdapterCapabilities | None = None
+
+    def ensure_capabilities(self) -> AdapterCapabilities:
+        """Probe the adapter once per session and remember the answer -
+        probing runs ATMA, which isn't something to repeat on every scan."""
+        if self.capabilities is None:
+            self.capabilities = self.driver.probe_capabilities()
+        return self.capabilities
 
     @classmethod
     def connect(cls, port: str, *, baudrate: int = 38400, protocol: OBDProtocol = OBDProtocol.AUTO) -> "VagscanSession":

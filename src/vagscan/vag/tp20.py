@@ -92,6 +92,20 @@ class TP20Client:
         listen_seconds = self._bus_listen_seconds if listen_seconds is None else listen_seconds
         if self._observed_ids is None:
             self._observed_ids = self._logger.observed_can_ids(listen_seconds)
+        if not self._observed_ids:
+            # Seeing nothing is not the same as seeing an idle bus. A VAG
+            # powertrain bus with the ignition on is never silent, so an
+            # empty observation means we couldn't see the bus at all -
+            # typically a clone adapter without working monitor mode, or the
+            # ignition off. Either way we have no basis to call the ID free,
+            # and guessing in the permissive direction is the one mistake
+            # this interlock exists to prevent.
+            raise BusSafetyError(
+                "No se transmitió nada: no se vio ninguna trama en el bus, así que no hay forma de "
+                "confirmar que el ID CAN 0x{:03X} esté libre. Suele ser un adaptador clon sin modo monitor "
+                "(ATMA) funcional, o el contacto apagado / bus dormido. La sonda TP2.0 queda deshabilitada: "
+                "el OBD-II estándar sigue andando normal.".format(can_id)
+            )
         if can_id in self._observed_ids:
             raise BusSafetyError(
                 f"No se transmitió nada: el ID CAN 0x{can_id:03X} ya lo está usando un módulo real de este "

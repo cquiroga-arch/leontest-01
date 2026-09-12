@@ -4,11 +4,12 @@ from vagscan.elm327.driver import ELM327Driver
 from vagscan.vag.kwp2000 import KWP2000Client, KWP2000Error
 from vagscan.vag.tp20 import TP20Client
 
-from .conftest import FakeTransport
+from .conftest import LIVE_BUS_TRAFFIC, FakeTransport
 
 
 def _client_on_channel(responses):
-    transport = FakeTransport(responses)
+    # Live bus traffic so the safety interlock can confirm the tx ID is free.
+    transport = FakeTransport({"ATMA": LIVE_BUS_TRAFFIC, **responses})
     transport.open()
     driver = ELM327Driver(transport)
     tp20 = TP20Client(driver, bus_listen_seconds=0.05)

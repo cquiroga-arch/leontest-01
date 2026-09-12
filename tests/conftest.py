@@ -8,6 +8,22 @@ import pytest
 from vagscan.transport.base import Transport, TransportClosed
 
 
+# What a live VAG powertrain bus looks like to ATMA: constant periodic
+# traffic from real modules. Tests that exercise transmitting need this,
+# because the bus-safety interlock refuses to transmit when it can't see any
+# traffic at all (an empty bus means "blind", not "idle"). Deliberately does
+# not include 0x200 or 0x300, the IDs the TP2.0 layer transmits on.
+LIVE_BUS_TRAFFIC = "\r".join(
+    [
+        "280 49 0E 00 00 00 00 00 1A",
+        "288 00 00 00 00 00 00 00 00",
+        "320 05 00 00 00 00 00 00 00",
+        "420 00 00 00 00 00 00 00 00",
+        "5A0 FF 00 00 00 00 00 00 00",
+    ]
+)
+
+
 class FakeTransport(Transport):
     """Maps an exact outgoing command string to a canned reply string.
     Unmapped commands get `default` (a generic non-error "OK"-ish reply).

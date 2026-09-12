@@ -102,6 +102,34 @@ to run without an explicit `i_understand_lockout_risk=True` from your own
 code. There is no flashing, no coding, no adaptation writing, and no
 immobilizer code anywhere in this project.
 
+## About the cheap blue "ELM327 mini" clones
+
+These (the ~$8 blue dongle labelled *ELM327 MINI - Supports all OBDII
+protocols*) are what most people have, and they're fine for the standard
+OBD-II side of this tool. Things worth knowing:
+
+- **They are clones.** Genuine ELM327 silicon comes from ELM Electronics;
+  these don't. `ATI` reports a version string that is often simply untrue,
+  which is why the app shows it as "what the adapter *says* it is".
+  Counter-intuitively the ones labelled **v1.5 are usually better** than the
+  ones labelled v2.1.
+- **They implement the standard OBD modes properly** - reading and clearing
+  engine fault codes, live data. That's the part you'll actually use.
+- **They're hit and miss on the optional AT commands**, and an unimplemented
+  one just answers `?` rather than saying so. `ATMA` (monitor mode),
+  `ATCAF0` and `ATCRA` are commonly missing. The app probes for these and
+  tells you what yours supports instead of assuming.
+- **Without working monitor mode the VAG probe stays disabled** - not as a
+  limitation but as the safety interlock doing its job: it can't confirm the
+  CAN ID is free, so it won't transmit. Standard OBD-II is unaffected.
+- **Multi-frame responses (like the VIN) often fail** on these. Harmless -
+  the VIN is informational and a failure there never aborts a scan.
+- **Unplug it when you're not using it.** These draw current continuously
+  and don't sleep properly; left plugged into the OBD port they can flatten
+  a battery over a week or two. That's a property of the hardware, not of
+  this software.
+- Bluetooth pairing PIN is usually **1234** or **0000**.
+
 ## Safety notes
 
 - Clearing a DTC (generic `dtc-clear` or `vag-clear`) resets the MIL and

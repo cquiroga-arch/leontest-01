@@ -55,6 +55,7 @@ class ScanResult:
     protocol: str | None = None
     voltage: str | None = None
     adapter: str | None = None
+    capabilities: object | None = None  # AdapterCapabilities, when probed
     dtcs: list[FoundDTC] = field(default_factory=list)
     modules: list[ModuleProbe] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
@@ -158,6 +159,21 @@ class FullScanner:
             result.vin = self._session.obd2.read_vin()
         except Exception as exc:  # noqa: BLE001 - VIN is optional info, never fatal to a scan
             result.warnings.append(f"No se pudo leer el VIN: {exc}")
+        if self._scan_vag_modules:
+            # Only worth the ATMA round trip when the VAG probe is actually
+            # being asked for - standard OBD needs none of these commands.
+            try:
+                capabilities = self._session.ensure_capabilities()
+                result.capabilities = capabilities
+                if not capabilities.can_do_vag_probing:
+                    result.warnings.append(
+                        "Este adaptador no implementa "
+                        + ", ".join(capabilities.missing())
+                        + ". Es típico de los clones baratos. El OBD-II estándar (leer y borrar fallas del "
+                        "motor) anda igual; la sonda VAG no se puede usar de forma segura sin modo monitor."
+                    )
+            except Exception as exc:  # noqa: BLE001 - capability probing is advisory
+                result.warnings.append(f"No se pudieron consultar las capacidades del adaptador: {exc}")
 
     def _read_dtcs(self, result: ScanResult, method_name: str, kind: str) -> None:
         try:

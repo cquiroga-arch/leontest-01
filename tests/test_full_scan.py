@@ -7,7 +7,7 @@ from vagscan.vag.addresses import MODULE_ADDRESSES
 from vagscan.vag.bus_logger import BusLogger
 from vagscan.vag.tp20 import TP20Client
 
-from .conftest import FakeTransport
+from .conftest import LIVE_BUS_TRAFFIC, FakeTransport
 
 
 def _silent_module_probes(except_for: dict[str, str] | None = None) -> dict[str, str]:
@@ -24,7 +24,7 @@ def _silent_module_probes(except_for: dict[str, str] | None = None) -> dict[str,
 
 
 def _session_with(responses, default="OK"):
-    transport = FakeTransport(responses, default=default)
+    transport = FakeTransport({"ATMA": LIVE_BUS_TRAFFIC, **responses}, default=default)
     transport.open()
     driver = ELM327Driver(transport)
     return VagscanSession(

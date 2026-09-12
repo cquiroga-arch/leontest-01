@@ -32,6 +32,19 @@ def test_refuses_to_transmit_on_a_can_id_a_real_module_is_using():
     assert "01C0FFFFFFFFFFFF" not in transport.written
 
 
+def test_refuses_to_transmit_when_the_bus_cannot_be_seen_at_all():
+    """Regression guard for a real false-safe: an adapter that can't monitor
+    (the common blue clones often can't) returns an empty observation, and
+    an empty observation was being read as "the ID is free". A VAG bus with
+    the ignition on is never silent, so seeing nothing means we're blind -
+    which is not permission to transmit."""
+    client, transport = _client({"ATMA": "?", "01C0FFFFFFFFFFFF": "NO DATA"})
+    with pytest.raises(BusSafetyError, match="ninguna trama"):
+        client.discover_channel("01")
+
+    assert "01C0FFFFFFFFFFFF" not in transport.written
+
+
 def test_transmits_when_the_target_id_is_not_in_use():
     client, transport = _client(
         {

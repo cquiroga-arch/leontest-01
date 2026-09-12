@@ -44,6 +44,34 @@ _KNOWN_ERRORS = {
 
 
 @dataclass
+class AdapterCapabilities:
+    """Which optional AT commands this particular adapter implements."""
+
+    headers: bool = False
+    can_auto_format_off: bool = False
+    set_header: bool = False
+    receive_filter: bool = False
+    monitor_all: bool = False
+
+    @property
+    def can_do_standard_obd(self) -> bool:
+        """Reading and clearing fault codes needs none of the above - every
+        adapter that talks at all can do it."""
+        return True
+
+    @property
+    def can_do_vag_probing(self) -> bool:
+        """The experimental TP2.0 layer needs raw CAN control, and the safety
+        interlock that gates it needs monitor mode. Without monitor_all the
+        probe stays disabled by design, not by accident."""
+        return self.can_auto_format_off and self.set_header and self.monitor_all
+
+    def missing(self) -> list[str]:
+        return [name for name in ("headers", "can_auto_format_off", "set_header", "receive_filter", "monitor_all")
+                if not getattr(self, name)]
+
+
+@dataclass
 class ELM327Fingerprint:
     """Raw identification strings. Distinguishing a genuine ELM327 (PIC18F25K80)
     from a clone reliably from software alone isn't possible in general —
@@ -146,6 +174,39 @@ class ELM327Driver:
         except ELM327Error:
             return None
         return OBDProtocol.from_dpn(reply)
+
+    def probe_capabilities(self) -> "AdapterCapabilities":
+        """Ask the adapter which of the non-basic AT commands it actually
+        implements, rather than assuming.
+
+        The cheap blue "ELM327 mini" clones - by far the most common thing
+        people plug in - implement the standard OBD modes fine but are hit
+        and miss on everything else, and they don't announce which parts are
+        missing: an unimplemented command just answers `?`. The advanced VAG
+        features depend on exactly those commands, and so does the
+        listen-before-transmit safety interlock, so it's worth knowing up
+        front instead of discovering it against a live car.
+        """
+        supported: dict[str, bool] = {}
+        for name, command, restore in [
+            ("headers", "ATH1", None),
+            ("can_auto_format_off", "ATCAF0", "ATCAF1"),
+            ("set_header", "ATSH7DF", None),
+            ("receive_filter", "ATCRA7E8", "ATCRA"),
+            ("monitor_all", "ATMA", None),
+        ]:
+            try:
+                reply = self.send_command(command, timeout=2.0)
+                supported[name] = "?" not in reply
+            except ELM327Error:
+                supported[name] = False
+            finally:
+                if supported.get(name) and name == "monitor_all":
+                    # ATMA streams until interrupted; stop it before moving on.
+                    self._try(" ")
+                if restore:
+                    self._try(restore)
+        return AdapterCapabilities(**supported)
 
     def identify(self) -> ELM327Fingerprint:
         return ELM327Fingerprint(
