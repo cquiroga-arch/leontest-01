@@ -184,10 +184,10 @@ the UI work) - see the "Tests" section below for how that emulator works.
 
 You don't need Python or any of this source code to use it.
 
-1. Go to the repo's **Actions** tab → the latest **Build VAGScan app** run.
-2. Download the **VAGScan-Windows** artifact (or **VAGScan-Linux**).
-3. Unzip it. You get a single `VAGScan.exe` - double-click it, nothing to
-   install.
+**[⬇ Descargar VAGScan.exe](https://github.com/cquiroga-arch/leontest-01/releases/latest/download/VAGScan.exe)**
+— one file, double-click it, nothing to install.
+([Linux build](https://github.com/cquiroga-arch/leontest-01/releases/latest/download/VAGScan),
+[all releases](https://github.com/cquiroga-arch/leontest-01/releases/latest))
 
 Windows SmartScreen will warn about an unrecognised app the first time,
 because the executable isn't code-signed (signing certificates cost money
