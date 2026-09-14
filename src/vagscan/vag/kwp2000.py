@@ -21,7 +21,11 @@ legitimate diagnostic function, supply the computed key bytes yourself.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from .tp20 import TP20Channel, TP20Client, TP20Timeout
+
+__all__ = ["KWP2000Client", "KWP2000Error", "OdometerReading"]
 
 _NRC = {
     0x10: "generalReject",
@@ -41,6 +45,23 @@ class KWP2000Error(Exception):
     def __init__(self, message: str, nrc: int | None = None):
         super().__init__(message)
         self.nrc = nrc
+
+
+@dataclass(frozen=True)
+class OdometerReading:
+    """A mileage value read from the instrument cluster. Read-only: this
+    tool has no code path that writes it back, by design."""
+
+    km: int | None  # best-effort decoded value, or None if we couldn't parse it
+    raw: bytes  # the raw measuring-block bytes, always kept for inspection
+    source_group: int  # which measuring block / identifier it came from
+
+    @property
+    def confident(self) -> bool:
+        # A plausible odometer for a ~20-year-old car: positive and below a
+        # sanity ceiling. Anything outside that is almost certainly the wrong
+        # block or a parse that doesn't apply to this cluster.
+        return self.km is not None and 0 < self.km < 2_000_000
 
 
 class KWP2000Client:
@@ -81,6 +102,52 @@ class KWP2000Client:
         this deliberately returns raw bytes rather than a parsed structure."""
         return self._request(0x18, bytes([status_mask]))
 
+    def read_measuring_block(self, group: int) -> bytes:
+        """SID 0x21 readDataByLocalIdentifier - VAG's "measuring blocks".
+        Purely a read. Returns the raw block bytes for the caller to
+        interpret; the layout of each block is cluster-specific."""
+        return self._request(0x21, bytes([group]))
+
+    # Instrument-cluster measuring blocks that, across published VAG
+    # write-ups for this generation, tend to carry the stored odometer. We
+    # try them in order and take the first that decodes to a plausible value
+    # - none of this is a spec we can check, hence the sanity filter.
+    _MILEAGE_BLOCK_CANDIDATES = (0x22, 0x02, 0x01)
+
+    def read_odometer(self) -> OdometerReading:
+        """Read the cluster's stored mileage. READ-ONLY.
+
+        There is deliberately no counterpart that writes it: changing a
+        stored odometer is odometer fraud, illegal in essentially every
+        jurisdiction, and this project does not implement it. This reads the
+        value so it can be seen and documented (e.g. before a legitimate
+        cluster replacement), nothing more.
+        """
+        last_error: KWP2000Error | None = None
+        first_raw = b""
+        for group in self._MILEAGE_BLOCK_CANDIDATES:
+            try:
+                raw = self.read_measuring_block(group)
+            except KWP2000Error as exc:
+                last_error = exc
+                continue
+            if not first_raw:
+                first_raw = raw
+            # A readDataByLocalIdentifier response echoes the requested
+            # identifier as its first byte; the odometer data follows it.
+            # Stripping it keeps that echo byte from being mistaken for part
+            # of the value and producing a confident-looking wrong number.
+            data = raw[1:] if raw and raw[0] == group else raw
+            km = _decode_odometer_km(data)
+            reading = OdometerReading(km=km, raw=raw, source_group=group)
+            if reading.confident:
+                return reading
+        if first_raw:
+            # Got data but nothing decoded sensibly - hand back the raw bytes
+            # rather than a made-up number.
+            return OdometerReading(km=None, raw=first_raw, source_group=self._MILEAGE_BLOCK_CANDIDATES[0])
+        raise last_error or KWP2000Error("el cuadro no respondió a ninguna lectura de kilometraje")
+
     def clear_diagnostic_information(self, group_of_dtc: bytes = b"\xff\xff") -> None:
         """SID 0x14. 0xFFFF conventionally means "all groups" in ISO
         14230-3. Caller (the CLI) must have already gotten explicit human
@@ -117,3 +184,22 @@ class KWP2000Client:
             self._request(0x3E, timeout=0.5)
         except KWP2000Error:
             pass  # keep-alive purpose only; a rejection here doesn't matter
+
+
+def _decode_odometer_km(data: bytes) -> int | None:
+    """Best-effort decode of a cluster measuring block to kilometres, using
+    ONE fixed rule rather than a hunt.
+
+    VAG clusters of this era most commonly store the odometer as a 3-byte
+    little-endian kilometre count in the block, so that's what we apply -
+    deliberately not a scan across widths and scales, because a scan will
+    turn almost any bytes into a plausible-looking number and an odometer
+    shown with false confidence is worse than an honest "couldn't decode".
+    If this fixed rule gives an implausible value we return None and let the
+    caller show the raw bytes instead.
+    """
+    if len(data) >= 3:
+        value = int.from_bytes(data[:3], "little")
+        if 0 < value < 2_000_000:
+            return value
+    return None

@@ -158,6 +158,7 @@ class VagscanApp(ttk.Frame):
             ("panel", "Escaneo"),
             ("dtc", "Fallas (DTC)"),
             ("live", "En vivo"),
+            ("odo", "Kilometraje"),
             ("vag", "VAG avanzado"),
             ("about", "Seguridad / Acerca de"),
         ]:
@@ -172,6 +173,7 @@ class VagscanApp(ttk.Frame):
             "panel": self._build_panel_page(content),
             "dtc": self._build_dtc_page(content),
             "live": self._build_live_page(content),
+            "odo": self._build_odometer_page(content),
             "vag": self._build_vag_page(content),
             "about": self._build_about_page(content),
         }
@@ -529,6 +531,82 @@ class VagscanApp(ttk.Frame):
         self._run(job, on_success, on_error)
 
     # ------------------------------------------------------------------
+    # odometer page - READ ONLY
+    # ------------------------------------------------------------------
+    def _build_odometer_page(self, parent: ttk.Frame) -> ttk.Frame:
+        page = ttk.Frame(parent)
+        ttk.Label(page, text="Kilometraje del cuadro", font=(theme.FONT_FAMILY, 14, "bold")).pack(anchor="w", pady=(0, 4))
+        ttk.Label(
+            page,
+            text="Solo lectura. Muestra el kilometraje real guardado en el cuadro de instrumentos, "
+            "para que lo veas y lo documentes. Esta app no modifica el odómetro: adulterarlo es delito "
+            "y no está implementado.",
+            style="Muted.TLabel",
+            wraplength=620,
+        ).pack(anchor="w", pady=(0, 14))
+
+        card = ttk.Frame(page, style="Card.TFrame", padding=(18, 16))
+        card.pack(fill="x")
+        ttk.Label(card, text="KILÓMETROS (CUADRO)", style="CardTitle.TLabel").pack(anchor="w")
+        self.odo_value = ttk.Label(card, text="--", style="CardValue.TLabel")
+        self.odo_value.pack(anchor="w", pady=(4, 0))
+        self.odo_detail = ttk.Label(card, text="", style="Card.TLabel", wraplength=560)
+        self.odo_detail.pack(anchor="w", pady=(6, 0))
+
+        controls = ttk.Frame(page)
+        controls.pack(fill="x", pady=(14, 0))
+        self.odo_read_btn = ttk.Button(controls, text="Leer kilometraje", style="Accent.TButton", command=self._read_odometer)
+        self.odo_read_btn.pack(side="left")
+        ttk.Label(controls, text="  Canal confirmado (opcional):  TX").pack(side="left")
+        self.odo_tx_var = tk.StringVar()
+        ttk.Entry(controls, textvariable=self.odo_tx_var, width=6).pack(side="left", padx=(4, 6))
+        ttk.Label(controls, text="RX").pack(side="left")
+        self.odo_rx_var = tk.StringVar()
+        ttk.Entry(controls, textvariable=self.odo_rx_var, width=6).pack(side="left", padx=(4, 0))
+
+        ttk.Label(
+            page,
+            text="Nota: leer el cuadro usa la capa VAG experimental. En el clon ELM327 (sin modo monitor) "
+            "el interlock de seguridad la deshabilita, así que puede que acá no lea nada - eso es "
+            "esperado, no una falla.",
+            style="Muted.TLabel",
+            wraplength=620,
+        ).pack(anchor="w", pady=(16, 0))
+        return page
+
+    def _read_odometer(self) -> None:
+        if self.session is None:
+            messagebox.showwarning("Sin conexión", "Primero conectá el adaptador.")
+            return
+        tx_text, rx_text = self.odo_tx_var.get().strip(), self.odo_rx_var.get().strip()
+
+        def job():
+            if tx_text and rx_text:
+                return self.session.read_cluster_odometer_on(int(tx_text, 16), int(rx_text, 16))
+            return self.session.read_cluster_odometer()
+
+        def on_success(reading):
+            if reading.confident:
+                self.odo_value.configure(text=f"{reading.km:,} km".replace(",", "."))
+                self.odo_detail.configure(
+                    text=f"Leído del bloque 0x{reading.source_group:02X}. Valor de solo lectura."
+                )
+                self._set_status("Kilometraje leído del cuadro.", "ok")
+            else:
+                self.odo_value.configure(text="sin decodificar")
+                self.odo_detail.configure(
+                    text=f"El cuadro respondió pero el valor no se pudo interpretar. Bytes crudos: {reading.raw.hex().upper()}"
+                )
+                self._set_status("El cuadro respondió pero el kilometraje no se decodificó.", "warn")
+
+        def on_error(exc):
+            self.odo_value.configure(text="--")
+            self.odo_detail.configure(text=str(exc))
+            self._set_status(f"No se pudo leer el kilometraje: {exc}", "warn")
+
+        self._run(job, on_success, on_error, busy_widgets=(self.odo_read_btn,))
+
+    # ------------------------------------------------------------------
     # VAG (experimental) page
     # ------------------------------------------------------------------
     def _build_vag_page(self, parent: ttk.Frame) -> ttk.Frame:
@@ -779,6 +857,7 @@ class VagscanApp(ttk.Frame):
             self.dtc_read_btn,
             self.dtc_clear_btn,
             self.live_toggle_btn,
+            self.odo_read_btn,
             self.vag_discover_btn,
             self.vag_clear_btn,
             self.capture_btn,

@@ -36,6 +36,13 @@ isn't tied to the CLI.
 - **Full scan (`vagscan.app.full_scan`)**: one pass over generic OBD-II
   plus every known VAG module address, reporting partial results - a silent
   module or an unsupported mode is a normal outcome, not an aborted scan.
+- **Odometer read (`vagscan.gui` "Kilometraje" tab)**: reads the mileage
+  stored in the instrument cluster so it can be seen and documented (e.g.
+  before a legitimate cluster swap). **Read-only, by design.** Writing a
+  stored odometer is fraud and is not implemented - there is no code path
+  that does it, and a test asserts that stays true. Reading goes through
+  the experimental VAG layer, so on an adapter without monitor mode the
+  safety interlock will decline rather than transmit blind.
 - **CLI (`vagscan.app.cli`)**: the same functionality as a scriptable
   terminal tool - `ports`, `identify`, `live`, `dtc-read`, `dtc-clear`,
   `vin`, `vag-modules`, `vag-discover`, `vag-log`, `vag-clear`.
