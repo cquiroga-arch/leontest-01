@@ -9,6 +9,12 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+# Needed to attach the built app to a Release. Actions artifacts are awkward
+# to get at - you have to be signed in and dig through the CI run - whereas a
+# Release asset on a public repo is a plain download link.
+permissions:
+  contents: write
+
 jobs:
   build:
     strategy:
@@ -59,3 +65,15 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ matrix.binary }}
+          fail_on_unmatched_files: true
+          body: |
+            Descargá **VAGScan.exe** de acá abajo y hacele doble clic. No
+            necesitás instalar Python ni nada más.
+
+            Windows va a advertir sobre una aplicación no reconocida la
+            primera vez (el ejecutable no está firmado digitalmente):
+            *Más información → Ejecutar de todas formas*.
+
+            Si algo se ve raro, corré `VAGScan.exe --selftest` - comprueba
+            que la app esté íntegra y lista los puertos que ve, sin
+            necesidad del auto.
