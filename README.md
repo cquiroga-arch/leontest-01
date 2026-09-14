@@ -180,12 +180,41 @@ OBD-II side of this tool. Things worth knowing:
 These were taken against a scripted ELM327 emulator (no car needed to see
 the UI work) - see the "Tests" section below for how that emulator works.
 
-## Setup
+## Install (download the app)
+
+You don't need Python or any of this source code to use it.
+
+1. Go to the repo's **Actions** tab → the latest **Build VAGScan app** run.
+2. Download the **VAGScan-Windows** artifact (or **VAGScan-Linux**).
+3. Unzip it. You get a single `VAGScan.exe` - double-click it, nothing to
+   install.
+
+Windows SmartScreen will warn about an unrecognised app the first time,
+because the executable isn't code-signed (signing certificates cost money
+and this is a personal tool). *More info → Run anyway.*
+
+If something looks wrong, run `VAGScan.exe --selftest` - it checks the app
+is intact and lists the serial ports it can see, without needing a car.
+
+Every build runs the test suite first and then verifies the produced
+executable actually starts and has its full fault-code database, so a
+broken download shouldn't reach you in the first place.
+
+## Run from source instead
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate  # or .venv\Scripts\activate on Windows
 pip install -e ".[dev]"
+vagscan-gui
+```
+
+To build the standalone executable yourself:
+
+```bash
+pip install pyinstaller
+pyinstaller --clean --noconfirm packaging/vagscan.spec
+python packaging/verify_build.py dist/VAGScan      # dist/VAGScan.exe on Windows
 ```
 
 Tkinter (the GUI toolkit) ships with the official python.org installers for

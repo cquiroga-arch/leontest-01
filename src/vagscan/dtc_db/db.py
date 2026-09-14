@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import importlib.resources
 import json
+import sys
 from dataclasses import dataclass, field
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -26,7 +28,24 @@ class DtcInfo:
     vag_fault_code: str | None = None
 
 
+def _data_dir_when_frozen() -> Path | None:
+    """PyInstaller unpacks bundled data next to the running executable (in
+    `sys._MEIPASS`). Package-resource lookup usually still works there, but
+    "usually" isn't good enough for the file that holds every fault-code
+    description - without it the app runs and silently reports every code as
+    unknown."""
+    base = getattr(sys, "_MEIPASS", None)
+    if base is None:
+        return None
+    return Path(base) / "vagscan" / "dtc_db" / "data"
+
+
 def _load_json(filename: str) -> list[dict]:
+    frozen_dir = _data_dir_when_frozen()
+    if frozen_dir is not None:
+        candidate = frozen_dir / filename
+        if candidate.is_file():
+            return json.loads(candidate.read_text(encoding="utf-8"))
     with importlib.resources.files("vagscan.dtc_db.data").joinpath(filename).open("r", encoding="utf-8") as f:
         return json.load(f)
 

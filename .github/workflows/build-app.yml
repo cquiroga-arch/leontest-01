@@ -1,0 +1,61 @@
+name: Build VAGScan app
+
+# Produces the double-clickable app. Windows is the one that matters for
+# this project (a paired ELM327 shows up as a COM port there), but Linux is
+# cheap to build alongside and the spec file is identical.
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: VAGScan-Windows
+            binary: dist/VAGScan.exe
+          - os: ubuntu-latest
+            artifact: VAGScan-Linux
+            binary: dist/VAGScan
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install project and build tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pyinstaller
+
+      - name: Run tests
+        run: |
+          pip install pytest
+          python -m pytest -q
+
+      - name: Build executable
+        run: pyinstaller --clean --noconfirm packaging/vagscan.spec
+
+      - name: Verify the packaged app is intact
+        # Catches the failure mode that matters most: an app that launches
+        # but shipped without its fault-code database.
+        run: python packaging/verify_build.py "${{ matrix.binary }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.binary }}
+          retention-days: 90
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.binary }}
