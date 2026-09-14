@@ -254,12 +254,32 @@ vagscan --port COM5 vag-log --seconds 30 --out capture.log
 pytest
 ```
 
-55 tests run against an in-memory fake transport (`tests/conftest.py`) - no
+80 tests run against an in-memory fake transport (`tests/conftest.py`) - no
 hardware required. They validate our own protocol/framing logic (driver AT
 sequencing, OBD2 PID/DTC decoding, TP2.0 single-frame send/receive, KWP2000
-positive/negative response handling, the GUI's background IOWorker), not
-the real ECU's behavior, which can only be confirmed against the actual
-car. The GUI itself was additionally driven end-to-end (connect, read
-DTCs, stream live data, navigate every tab) against a scripted fake
-ELM327 under a virtual display, which is how the screenshots above were
-produced.
+positive/negative response handling, the odometer read + decode, the
+listen-before-transmit interlock, the GUI's background IOWorker), not the
+real ECU's behavior, which can only be confirmed against the actual car.
+
+### Try it with no car (software ELM327 + car)
+
+`tools/car_emulator.py` is a full software adapter+vehicle: an engine
+idling with RPM jitter, coolant warming up, a running-engine battery
+voltage reported both ways (ATRV and PID 0142), stored DTCs and a VIN, with
+live values that move over time. By default it emulates the common blue
+"ELM327 v1.5 mini" clone (no monitor mode), so you can see the whole app
+behave - including the VAG/odometer path declining safely - exactly as it
+will on that hardware. `--genuine` emulates a monitor-capable adapter.
+
+```bash
+python tools/car_emulator.py            # prints a PTY path
+# then point VAGScan at that path (Linux: symlink it to /dev/rfcomm0 so
+# auto-detection finds it), connect, and scan
+```
+
+The GUI was driven end-to-end against this emulator - auto-detect, connect,
+scan, stream live data (RPM ~820, battery ~14.1 V), and the odometer tab
+declining on the clone - which is how the screenshots were produced. Note
+the two battery readings differ by a few tenths on purpose: ATRV is the
+adapter's own voltage pin, PID 0142 is the ECU's measured supply - both are
+real, independent readings, not a discrepancy.
