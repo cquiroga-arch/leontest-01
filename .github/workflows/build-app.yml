@@ -8,6 +8,11 @@ on:
     branches: ["**"]
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Publicar un Release con esta etiqueta (ej. v0.1.0). Vacío = solo artefactos."
+        required: false
+        default: ""
 
 # Needed to attach the built app to a Release. Actions artifacts are awkward
 # to get at - you have to be signed in and dig through the CI run - whereas a
@@ -61,9 +66,11 @@ jobs:
           retention-days: 90
 
       - name: Attach to release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.release_tag != '' && inputs.release_tag || github.ref_name }}
+          name: VAGScan ${{ inputs.release_tag != '' && inputs.release_tag || github.ref_name }}
           files: ${{ matrix.binary }}
           fail_on_unmatched_files: true
           body: |
