@@ -346,15 +346,16 @@ class VagscanApp(ttk.Frame):
         self.scan_detail.delete("1.0", "end")
         if selection:
             found = self._scan_rows.get(selection[0])
-            if found is not None and found.info is not None:
-                text = f"{found.dtc.code} - {found.info.title}\n\n{found.info.description}"
-                if found.info.common_causes:
-                    text += "\n\nCausas comunes: " + "; ".join(found.info.common_causes)
-                if found.info.suggested_checks:
-                    text += "\n\nRevisar: " + "; ".join(found.info.suggested_checks)
+            if found is not None:
+                info = found.info
+                text = f"{found.dtc.code} - {info.title}\n\n{info.description}"
+                if info.common_causes:
+                    text += "\n\nCausas comunes: " + "; ".join(info.common_causes)
+                if info.suggested_checks:
+                    text += "\n\nRevisar: " + "; ".join(info.suggested_checks)
+                if not found.in_db:
+                    text += "\n\n(Descripción orientativa por la estructura del código; aún no está en la base con detalle.)"
                 self.scan_detail.insert("1.0", text)
-            elif found is not None:
-                self.scan_detail.insert("1.0", f"{found.dtc.code}: no está en la base local todavía.")
         self.scan_detail.configure(state="disabled")
 
     def _clear_scanned_dtcs(self) -> None:
@@ -431,11 +432,9 @@ class VagscanApp(ttk.Frame):
             count = 0
             for kind, dtcs in by_kind.items():
                 for dtc in dtcs:
-                    matches = self.session.dtc_db.lookup(dtc.code)
-                    title = matches[0].title if matches else "(no está en la base local)"
-                    severity = matches[0].severity if matches else "desconocida"
-                    iid = self.dtc_tree.insert("", "end", values=(kind, dtc.code, title, severity))
-                    self._dtc_rows[iid] = (dtc.code, matches[0] if matches else None)
+                    info = self.session.dtc_db.describe(dtc.code)  # never None
+                    iid = self.dtc_tree.insert("", "end", values=(kind, dtc.code, info.title, info.severity))
+                    self._dtc_rows[iid] = (dtc.code, info)
                     count += 1
             self._set_status(f"{count} fallas encontradas." if count else "Sin fallas almacenadas.", "ok")
 

@@ -29,15 +29,16 @@ ProgressCallback = Callable[[str, int, int], None]
 class FoundDTC:
     dtc: DTC
     kind: str  # "Almacenada" / "Pendiente" / "Permanente"
-    info: DtcInfo | None  # local knowledge-base entry, when the code is known
+    info: DtcInfo  # curated entry, or a structural best-effort one (never None)
+    in_db: bool = True  # False when `info` came from the generic fallback
 
     @property
     def title(self) -> str:
-        return self.info.title if self.info else "(no está en la base local)"
+        return self.info.title
 
     @property
     def severity(self) -> str:
-        return self.info.severity if self.info else "desconocida"
+        return self.info.severity
 
 
 @dataclass
@@ -182,8 +183,9 @@ class FullScanner:
             result.warnings.append(f"{kind}: {exc}")
             return
         for dtc in dtcs:
-            matches = self._session.dtc_db.lookup(dtc.code)
-            result.dtcs.append(FoundDTC(dtc=dtc, kind=kind, info=matches[0] if matches else None))
+            in_db = self._session.dtc_db.has(dtc.code)
+            info = self._session.dtc_db.describe(dtc.code)  # never None - falls back to structural
+            result.dtcs.append(FoundDTC(dtc=dtc, kind=kind, info=info, in_db=in_db))
 
     def _probe_module(self, module) -> ModuleProbe:
         try:

@@ -1,5 +1,19 @@
 [
   {
+    "code": "P0030", "system": "engine", "title": "Calefactor sonda lambda - circuito (Banco 1 Sensor 1)",
+    "description": "El circuito del calefactor de la sonda lambda anterior al catalizador tiene una falla eléctrica.",
+    "common_causes": ["Resistencia calefactora de la sonda abierta", "Fusible del calefactor de sondas quemado", "Conector de la sonda corroído"],
+    "suggested_checks": ["Medir la resistencia del calefactor de la sonda (típico 2-15 ohm según modelo)", "Revisar el fusible que alimenta las sondas", "Inspeccionar el conector de la sonda por corrosión/humedad"],
+    "severity": "moderate", "source": "SAE J2012 generic definition"
+  },
+  {
+    "code": "P0036", "system": "engine", "title": "Calefactor sonda lambda - circuito (Banco 1 Sensor 2)",
+    "description": "El circuito del calefactor de la sonda lambda posterior al catalizador (la de después del cat) tiene una falla eléctrica. Muy común en el 1.6 por la edad de la sonda trasera.",
+    "common_causes": ["Resistencia calefactora de la sonda trasera abierta (sonda al final de su vida)", "Conector de la sonda trasera corroído o con humedad", "Cableado hacia la sonda dañado por calor del escape", "Fusible del calefactor de sondas"],
+    "suggested_checks": ["Medir la resistencia del calefactor de la sonda trasera; si está abierta, reemplazar la sonda", "Revisar el conector bajo el auto por corrosión", "Verificar el fusible de sondas", "Si la sonda tiene muchos km, lo más probable es reemplazarla"],
+    "severity": "moderate", "source": "SAE J2012 generic definition"
+  },
+  {
     "code": "P0100", "system": "engine", "title": "Mass or Volume Air Flow Circuit Malfunction",
     "description": "MAF sensor signal out of expected range.",
     "common_causes": ["Dirty or failing MAF sensor", "Air leak between MAF and throttle body", "Wiring/connector fault"],
@@ -253,5 +267,166 @@
     "common_causes": ["Squib circuit open/short", "Clockspring (rotary coupler) wear", "Connector corrosion"],
     "suggested_checks": ["Have a qualified airbag technician inspect the clockspring and squib wiring before clearing this code", "Do not probe pyrotechnic squib circuits with a generic multimeter - use a purpose-built airbag simulator/resistor tool"],
     "severity": "severe", "source": "SAE J2012 generic definition (airbag codes are heavily manufacturer-specific - treat this as a starting point only)"
+  },
+  {
+    "code": "P0011", "system": "engine", "title": "Posición del árbol de levas (admisión) - avance/rendimiento (Banco 1)",
+    "description": "El variador de fase (VVT) del árbol de admisión no alcanza la posición comandada.",
+    "common_causes": ["Aceite sucio o de viscosidad incorrecta obstruyendo el variador", "Válvula de control de aceite del VVT trabada", "Nivel de aceite bajo", "Cadena/tensor con desgaste"],
+    "suggested_checks": ["Verificar nivel y estado del aceite; hacer cambio si está sucio", "Revisar/limpiar la válvula solenoide de control de aceite del VVT", "Verificar la puesta a punto de la distribución"],
+    "severity": "moderate", "source": "SAE J2012 generic definition"
+  },
+  {
+    "code": "P0016", "system": "engine", "title": "Correlación cigüeñal-árbol de levas (Banco 1)",
+    "description": "La posición del cigüeñal y la del árbol de levas no coinciden: la distribución está fuera de sincronía.",
+    "common_causes": ["Cadena/correa de distribución saltada un diente o estirada", "Tensor de cadena gastado", "Sensor de árbol o de cigüeñal defectuoso"],
+    "suggested_checks": ["Verificar la puesta a punto de la distribución con las marcas", "Revisar el tensor de cadena", "Comprobar señales de los sensores de cigüeñal y árbol de levas"],
+    "severity": "severe", "source": "SAE J2012 generic definition"
+  },
+  {
+    "code": "P0087", "system": "engine", "title": "Presión de riel/sistema de combustible demasiado baja",
+    "description": "La presión de combustible está por debajo de lo esperado.",
+    "common_causes": ["Filtro de combustible tapado", "Bomba de combustible débil", "Regulador de presión con fuga", "Fugas en las cañerías de combustible"],
+    "suggested_checks": ["Medir la presión de combustible en el riel", "Reemplazar el filtro de combustible si tiene muchos km", "Verificar caudal de la bomba"],
+    "severity": "moderate", "source": "SAE J2012 generic definition"
+  },
+  {
+    "code": "P0101", "system": "engine", "title": "MAF - rango/rendimiento",
+    "description": "La lectura del caudalímetro (MAF) es implausible respecto de otros sensores.",
+    "common_causes": ["MAF sucio", "Fuga de aire después del MAF", "Filtro de aire muy sucio"],
+    "suggested_checks": ["Limpiar el MAF con limpiador específico", "Buscar fugas de admisión", "Revisar filtro de aire"],
+    "severity": "moderate", "source": "SAE J2012 generic definition"
+  },
+  {
+    "code": "P0106", "system": "engine", "title": "Sensor MAP - rango/rendimiento",
+    "description": "La presión del múltiple (MAP) no varía de forma coherente con la carga del motor.",
+    "common_causes": ["Manguera de vacío del MAP tapada o rota", "Sensor MAP sucio/defectuoso", "Fuga de vacío"],
+    "suggested_checks": ["Revisar la manguera de vacío del MAP", "Limpiar/probar el sensor MAP", "Buscar fugas de vacío"],
+    "severity": "moderate", "source": "SAE J2012 generic definition"
+  },
+  {
+    "code": "P0113", "system": "engine", "title": "Sensor temperatura de admisión (IAT) - señal alta",
+    "description": "La señal del sensor de temperatura de aire indica un valor demasiado alto (o circuito abierto).",
+    "common_causes": ["Sensor IAT defectuoso (suele estar integrado en el MAF)", "Conector flojo o sucio", "Cableado cortado"],
+    "suggested_checks": ["Revisar conector del MAF/IAT", "Medir la resistencia del sensor vs temperatura"],
+    "severity": "informational", "source": "SAE J2012 generic definition"
+  },
+  {
+    "code": "P0122", "system": "engine", "title": "Sensor de posición de mariposa (TPS) - señal baja",
+    "description": "La señal del sensor de mariposa es demasiado baja.",
+    "common_causes": ["Cuerpo de mariposa sucio", "Sensor/potenciómetro de mariposa gastado", "Conector o cableado con falla"],
+    "suggested_checks": ["Limpiar el cuerpo de mariposa", "Hacer la adaptación de mariposa tras limpiar", "Revisar conector"],
+    "severity": "moderate", "source": "SAE J2012 generic definition"
+  },
+  {
+    "code": "P0131", "system": "engine", "title": "Sonda lambda - señal baja (Banco 1 Sensor 1)",
+    "description": "La sonda anterior al catalizador reporta tensión baja de forma persistente (mezcla pobre o sonda en falla).",
+    "common_causes": ["Sonda lambda gastada", "Fuga de escape antes de la sonda", "Mezcla realmente pobre (fuga de admisión)"],
+    "suggested_checks": ["Buscar fugas de escape cerca del múltiple", "Revisar fugas de admisión", "Reemplazar la sonda si está vieja"],
+    "severity": "moderate", "source": "SAE J2012 generic definition"
+  },
+  {
+    "code": "P0132", "system": "engine", "title": "Sonda lambda - señal alta (Banco 1 Sensor 1)",
+    "description": "La sonda anterior al catalizador reporta tensión alta persistente (mezcla rica o corto).",
+    "common_causes": ["Mezcla rica", "Cortocircuito en el cableado de la sonda", "Sonda contaminada"],
+    "suggested_checks": ["Revisar presión de combustible e inyectores", "Inspeccionar cableado de la sonda", "Reemplazar sonda si corresponde"],
+    "severity": "moderate", "source": "SAE J2012 generic definition"
+  },
+  {
+    "code": "P0141", "system": "engine", "title": "Calefactor sonda lambda trasera - rendimiento (Banco 1 Sensor 2)",
+    "description": "El calefactor de la sonda posterior al catalizador no calienta como debe.",
+    "common_causes": ["Sonda trasera gastada", "Cableado/conector del calefactor", "Fusible de sondas"],
+    "suggested_checks": ["Medir resistencia del calefactor de la sonda trasera", "Revisar conector y fusible"],
+    "severity": "moderate", "source": "SAE J2012 generic definition"
+  },
+  {
+    "code": "P0170", "system": "engine", "title": "Ajuste de combustible fuera de rango (Banco 1)",
+    "description": "La ECU no puede mantener la mezcla dentro de los límites normales de corrección.",
+    "common_causes": ["Fuga de admisión/vacío", "MAF sucio", "Presión de combustible incorrecta", "Inyectores sucios"],
+    "suggested_checks": ["Buscar fugas de admisión con humo", "Limpiar MAF", "Medir presión de combustible"],
+    "severity": "moderate", "source": "SAE J2012 generic definition"
+  },
+  {
+    "code": "P0234", "system": "engine", "title": "Sobrepresión de turbo/compresor",
+    "description": "Presión de sobrealimentación por encima de lo permitido (aplica a versiones turbo).",
+    "common_causes": ["Válvula waste-gate trabada", "Sensor de presión de turbo", "Actuador de turbo"],
+    "suggested_checks": ["Revisar waste-gate y su actuador", "Comprobar el sensor de presión de sobrealimentación"],
+    "severity": "moderate", "source": "SAE J2012 generic definition (aplica solo a versiones turbo)"
+  },
+  {
+    "code": "P0299", "system": "engine", "title": "Turbo/compresor - baja presión (underboost)",
+    "description": "La presión de sobrealimentación es menor a la esperada (versiones turbo).",
+    "common_causes": ["Fuga en mangueras de presión (intercooler)", "Waste-gate abierta", "Turbo desgastado"],
+    "suggested_checks": ["Buscar fugas en el circuito de presión", "Revisar el actuador de la waste-gate"],
+    "severity": "moderate", "source": "SAE J2012 generic definition (aplica solo a versiones turbo)"
+  },
+  {
+    "code": "P0321", "system": "engine", "title": "Sensor de régimen/posición del motor - rango/rendimiento",
+    "description": "La señal del sensor de régimen del motor es implausible.",
+    "common_causes": ["Sensor de cigüeñal", "Rueda fónica dañada", "Cableado"],
+    "suggested_checks": ["Revisar sensor de cigüeñal y rueda fónica", "Comprobar cableado"],
+    "severity": "moderate", "source": "SAE J2012 generic definition"
+  },
+  {
+    "code": "P0327", "system": "engine", "title": "Sensor de picado (knock) - señal baja",
+    "description": "La señal del sensor de detonación es demasiado baja.",
+    "common_causes": ["Sensor de picado flojo (par de apriete incorrecto)", "Sensor defectuoso", "Cableado"],
+    "suggested_checks": ["Verificar torque de montaje del sensor", "Medir el sensor", "Revisar cableado"],
+    "severity": "moderate", "source": "SAE J2012 generic definition"
+  },
+  {
+    "code": "P0341", "system": "engine", "title": "Sensor árbol de levas - rango/rendimiento",
+    "description": "La señal del sensor de árbol de levas no coincide con lo esperado.",
+    "common_causes": ["Sensor de árbol de levas", "Distribución salteada", "Cableado"],
+    "suggested_checks": ["Probar el sensor de árbol", "Verificar puesta a punto de distribución"],
+    "severity": "severe", "source": "SAE J2012 generic definition"
+  },
+  {
+    "code": "P0411", "system": "engine", "title": "Sistema de aire secundario - flujo incorrecto",
+    "description": "El sistema de inyección de aire secundario no funciona como se espera.",
+    "common_causes": ["Bomba de aire secundario", "Válvula combi trabada", "Mangueras"],
+    "suggested_checks": ["Probar la bomba de aire secundario", "Revisar la válvula y mangueras"],
+    "severity": "informational", "source": "SAE J2012 generic definition"
+  },
+  {
+    "code": "P0401", "system": "engine", "title": "EGR - flujo insuficiente",
+    "description": "La recirculación de gases de escape (EGR) fluye menos de lo comandado.",
+    "common_causes": ["Válvula EGR o conductos carbonizados", "Válvula EGR trabada"],
+    "suggested_checks": ["Desmontar y limpiar la válvula EGR y conductos", "Probar accionamiento de la EGR"],
+    "severity": "moderate", "source": "SAE J2012 generic definition"
+  },
+  {
+    "code": "P0421", "system": "engine", "title": "Eficiencia del catalizador (calentamiento) por debajo del umbral",
+    "description": "El catalizador no alcanza la eficiencia esperada en fase de calentamiento.",
+    "common_causes": ["Catalizador envejecido", "Sondas lambda", "Fuga de escape"],
+    "suggested_checks": ["Descartar fallos de encendido/mezcla primero", "Revisar fugas de escape", "Evaluar el catalizador"],
+    "severity": "moderate", "source": "SAE J2012 generic definition"
+  },
+  {
+    "code": "P0507", "system": "engine", "title": "Ralentí más alto de lo esperado",
+    "description": "Las RPM de ralentí están por encima del valor objetivo.",
+    "common_causes": ["Fuga de aire (vacío)", "Cuerpo de mariposa sucio", "Falta adaptación de mariposa"],
+    "suggested_checks": ["Buscar fugas de vacío", "Limpiar cuerpo de mariposa y hacer adaptación"],
+    "severity": "informational", "source": "SAE J2012 generic definition"
+  },
+  {
+    "code": "P1136", "system": "engine", "title": "Ajuste de combustible - límite de adaptación (VAG, mezcla pobre)",
+    "description": "Código específico VAG: la adaptación de combustible llegó al límite por mezcla pobre.",
+    "common_causes": ["Fuga de admisión (muy común en estos motores por juntas)", "MAF sucio", "Inyectores"],
+    "suggested_checks": ["Buscar fugas de admisión con humo (junta de múltiple es típica)", "Limpiar MAF", "Revisar presión de combustible"],
+    "severity": "moderate", "source": "definición específica VAG (P1xxx), orientativa"
+  },
+  {
+    "code": "P1137", "system": "engine", "title": "Ajuste de combustible - límite de adaptación (VAG, mezcla rica)",
+    "description": "Código específico VAG: la adaptación de combustible llegó al límite por mezcla rica.",
+    "common_causes": ["Presión de combustible alta", "Inyector con fuga", "MAF sobre-leyendo"],
+    "suggested_checks": ["Revisar regulador de presión", "Inspeccionar inyectores", "Comparar MAF con valores buenos"],
+    "severity": "moderate", "source": "definición específica VAG (P1xxx), orientativa"
+  },
+  {
+    "code": "U0101", "system": "network", "title": "Sin comunicación con el módulo de transmisión (TCM)",
+    "description": "Un módulo reporta que no puede comunicarse con la caja automática.",
+    "common_causes": ["Alimentación/masa del TCM", "Cableado del bus", "TCM en falla"],
+    "suggested_checks": ["Revisar fusible y alimentación del TCM", "Inspeccionar cableado CAN"],
+    "severity": "severe", "source": "SAE J2012 generic definition"
   }
 ]
