@@ -137,6 +137,30 @@ OBD-II side of this tool. Things worth knowing:
   this software.
 - Bluetooth pairing PIN is usually **1234** or **0000**.
 
+### "I paired it but the app doesn't find it"
+
+Pairing in Windows is not enough on its own - Windows exposes a Bluetooth
+serial adapter as a **COM port**, and the app talks to that port. If
+auto-detect finds nothing:
+
+1. **Plug the ELM327 into the car's OBD socket with the ignition on.** A
+   bare Bluetooth dongle has no power on the bench, so Windows can pair with
+   its stored profile but can't actually open a connection - it only
+   connects for real once the adapter is powered.
+2. **Check the COM port exists**: Settings → Bluetooth & devices → More
+   Bluetooth settings → **COM Ports** tab. There should be an *Outgoing*
+   port for the adapter (e.g. COM5). If there isn't, remove the device and
+   pair it again with the adapter powered.
+3. Auto-detect probes every COM port at 38400, 9600, 115200 and 500000
+   baud (clones vary), so you don't need to know which. If it still doesn't
+   catch it, the port is listed in the dropdown - pick it by hand and hit
+   Conectar.
+
+You never need to understand COM ports to use the app - when auto-detect
+works it connects on its own. The COM port only matters when it doesn't,
+and the app now tells you which ports it saw so you know whether Windows
+even created one.
+
 ## Safety notes
 
 - Clearing a DTC (generic `dtc-clear` or `vag-clear`) resets the MIL and

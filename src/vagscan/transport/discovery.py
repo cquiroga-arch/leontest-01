@@ -45,6 +45,7 @@ class ProbeResult:
     responded: bool
     identity: str  # raw ATI reply, when we got one
     error: str = ""
+    baudrate: int = 38400  # the baud rate the adapter actually answered at
 
 
 def list_serial_ports() -> list[PortInfo]:
@@ -105,6 +106,14 @@ def _read_until_prompt(port: serial.Serial, timeout: float) -> bytes:
     return bytes(buf)
 
 
+# Baud rates to try, most likely first. Bluetooth SPP clones are all over
+# the place here: the blue "v1.5 mini" usually enumerates at 38400, but a
+# good number default to 9600, and some to 115200. Probing 38400 only (as we
+# used to) means a 9600 clone pairs fine, gets a COM port, and still never
+# gets recognised - which looks exactly like "it doesn't appear".
+_BAUD_CANDIDATES = (38400, 9600, 115200, 500000)
+
+
 def candidate_ports() -> list[str]:
     """Every device worth probing, most-likely first.
 
@@ -123,16 +132,20 @@ def candidate_ports() -> list[str]:
     return devices
 
 
-def autodetect_elm327(*, baudrate: int = 38400, timeout: float = 1.5, probe=probe_port) -> ProbeResult | None:
-    """Probe every candidate port and return the first that answers as an
-    ELM327, or None if nothing did.
+def autodetect_elm327(
+    *, baudrates: tuple[int, ...] = _BAUD_CANDIDATES, timeout: float = 1.5, probe=probe_port
+) -> ProbeResult | None:
+    """Probe every candidate port, at each candidate baud rate, and return the
+    first that answers as an ELM327, or None if nothing did.
 
     `probe` is injectable so this can be tested without real hardware.
     """
     for device in candidate_ports():
-        logger.debug("Probing %s", device)
-        result = probe(device, baudrate=baudrate, timeout=timeout)
-        if result.responded:
-            logger.info("Found ELM327 on %s: %s", result.device, result.identity)
-            return result
+        for baud in baudrates:
+            logger.debug("Probing %s @ %d", device, baud)
+            result = probe(device, baudrate=baud, timeout=timeout)
+            if result.responded:
+                result.baudrate = baud
+                logger.info("Found ELM327 on %s @ %d: %s", result.device, baud, result.identity)
+                return result
     return None

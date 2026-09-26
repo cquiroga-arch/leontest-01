@@ -97,6 +97,7 @@ class VagscanApp(ttk.Frame):
         self._scan_rows: dict[str, object] = {}
         self._last_scan = None
         self._tp20_channel = None
+        self._detected_baud = 38400  # updated by autodetect to the rate that answered
         # The scan runs on the IO thread but its progress has to be drawn on
         # the UI thread, so it goes through a queue the poll loop drains -
         # same reason IOWorker doesn't call back into Tk directly.
@@ -792,16 +793,27 @@ class VagscanApp(ttk.Frame):
 
         def on_success(found):
             if found is None:
-                self._set_status(
-                    "No se encontró ningún ELM327. ¿Está enchufado al auto y emparejado por Bluetooth?", "warn"
-                )
-                self.scan_progress_label.configure(
-                    text="No se encontró el adaptador. Enchufálo al conector OBD, emparejá el Bluetooth y tocá "
-                    "\"Buscar adaptador\"."
-                )
+                seen = [p.device for p in list_serial_ports()]
+                if seen:
+                    detail = (
+                        "Puertos que vi pero ninguno respondió como ELM327: " + ", ".join(seen) + ". "
+                        "Asegurate de que el ELM327 esté ENCHUFADO al conector OBD del auto con el contacto "
+                        "puesto (si no, no tiene corriente y el Bluetooth no conecta). Si el puerto existe, "
+                        "podés elegirlo a mano en la lista de arriba y tocar Conectar."
+                    )
+                else:
+                    detail = (
+                        "Windows no creó ningún puerto COM para el adaptador todavía. Emparejarlo no alcanza: "
+                        "abrí 'Bluetooth y dispositivos' > 'Más configuraciones de Bluetooth' > pestaña "
+                        "'Puertos COM' y fijate que figure uno 'Saliente' para el ELM327. Enchufá el adaptador "
+                        "al auto con el contacto puesto antes de buscar."
+                    )
+                self._set_status("No se encontró ningún ELM327.", "warn")
+                self.scan_progress_label.configure(text=detail)
                 return
             self.port_var.set(found.device)
-            self._set_status(f"Adaptador encontrado en {found.device}: {found.identity}", "ok")
+            self._detected_baud = found.baudrate
+            self._set_status(f"Adaptador encontrado en {found.device} @ {found.baudrate} baud: {found.identity}", "ok")
             if then_connect:
                 self._connect()
 
@@ -822,10 +834,11 @@ class VagscanApp(ttk.Frame):
             messagebox.showwarning("Sin puerto", "Elegí un puerto serie (botón ↻ para actualizar la lista).")
             return
         self.connect_btn.configure(state="disabled")
+        baud = getattr(self, "_detected_baud", 38400)
         self._set_status(f"Conectando a {port}...", "info")
 
         def job():
-            return VagscanSession.connect(port)
+            return VagscanSession.connect(port, baudrate=baud)
 
         def on_success(session):
             self.session = session

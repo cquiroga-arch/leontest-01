@@ -88,6 +88,27 @@ def test_candidate_ports_does_not_duplicate_an_already_listed_rfcomm(monkeypatch
     assert discovery.candidate_ports() == ["/dev/rfcomm0"]
 
 
+def test_autodetect_finds_a_clone_that_only_answers_at_9600(monkeypatch):
+    """The blue clones often enumerate at 9600, not 38400. Probing 38400 only
+    made such an adapter look absent even with its COM port present."""
+    from vagscan.transport import discovery
+
+    monkeypatch.setattr(
+        discovery, "list_serial_ports", lambda: [discovery.PortInfo("COM5", "Bluetooth link", "", False)]
+    )
+    monkeypatch.setattr(discovery.glob, "glob", lambda pattern: [])
+
+    def probe(device, *, baudrate=38400, timeout=1.5):
+        if baudrate == 9600:
+            return ProbeResult(device=device, responded=True, identity="ELM327 v1.5")
+        return ProbeResult(device=device, responded=False, identity="", error="garbage at this baud")
+
+    found = autodetect_elm327(probe=probe)
+    assert found is not None
+    assert found.device == "COM5"
+    assert found.baudrate == 9600
+
+
 def test_autodetect_keeps_going_past_a_port_that_errors(monkeypatch):
     from vagscan.transport import discovery
 
