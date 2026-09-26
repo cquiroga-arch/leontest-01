@@ -100,13 +100,34 @@ def test_autodetect_finds_a_clone_that_only_answers_at_9600(monkeypatch):
 
     def probe(device, *, baudrate=38400, timeout=1.5):
         if baudrate == 9600:
-            return ProbeResult(device=device, responded=True, identity="ELM327 v1.5")
-        return ProbeResult(device=device, responded=False, identity="", error="garbage at this baud")
+            return ProbeResult(device=device, responded=True, identity="ELM327 v1.5", baudrate=9600)
+        # Wrong baud: a real ELM327 spits garbage bytes, not silence - which
+        # is the signal to keep trying other rates on this port.
+        return ProbeResult(device=device, responded=False, identity="xyz", error="garbage", saw_data=True)
 
     found = autodetect_elm327(probe=probe)
     assert found is not None
     assert found.device == "COM5"
     assert found.baudrate == 9600
+
+
+def test_autodetect_skips_remaining_bauds_on_a_silent_port(monkeypatch):
+    """A port that returns nothing at the first baud is dead/unpowered -
+    don't burn a timeout on it at every other baud."""
+    from vagscan.transport import discovery
+
+    monkeypatch.setattr(
+        discovery, "list_serial_ports", lambda: [discovery.PortInfo("COM3", "nothing here", "", False)]
+    )
+    monkeypatch.setattr(discovery.glob, "glob", lambda pattern: [])
+    attempts = []
+
+    def probe(device, *, baudrate=38400, timeout=1.5):
+        attempts.append(baudrate)
+        return ProbeResult(device=device, responded=False, identity="", error="silence", saw_data=False)
+
+    assert autodetect_elm327(probe=probe) is None
+    assert attempts == [38400]  # only the first baud was tried on the silent port
 
 
 def test_autodetect_keeps_going_past_a_port_that_errors(monkeypatch):

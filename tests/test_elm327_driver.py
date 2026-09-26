@@ -45,9 +45,10 @@ def test_initialize_runs_expected_sequence_and_opens_closed_transport():
     assert "ATE0" in transport.written
     assert "ATL0" in transport.written
     assert "ATS0" in transport.written
-    assert "ATH1" in transport.written
+    # Headers OFF for standard OBD (the VAG layer turns them on for itself).
+    assert "ATH0" in transport.written
     assert "ATSP0" in transport.written
-    assert driver.headers_on is True
+    assert driver.headers_on is False
 
 
 def test_reconnect_callback_reruns_initialize():

@@ -123,6 +123,14 @@ class SerialTransport(Transport):
                 raise TransportClosed(f"write failed: {exc}") from exc
             self._last_activity = time.monotonic()
 
+    def reset_input(self) -> None:
+        with self._lock:
+            if self._serial is not None:
+                try:
+                    self._serial.reset_input_buffer()
+                except (serial.SerialException, OSError):
+                    logger.debug("reset_input_buffer failed", exc_info=True)
+
     def read_until(self, terminator: bytes, timeout: float) -> bytes:
         with self._lock:
             if self._serial is None:

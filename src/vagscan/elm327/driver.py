@@ -106,6 +106,12 @@ class ELM327Driver:
         try:
             # write+read is one indivisible exchange - see Transport.transaction
             with self._transport.transaction():
+                # Drop any bytes still sitting in the input buffer from a
+                # previous command whose reply arrived late (a real car's
+                # first request triggers a slow protocol search, and a
+                # stray late reply would otherwise be read here and pair
+                # every subsequent answer with the wrong question).
+                self._transport.reset_input()
                 self._transport.write(command.strip().encode("ascii") + b"\r")
                 raw = self._transport.read_until(PROMPT, timeout=timeout)
         except TransportClosed as exc:
@@ -118,8 +124,11 @@ class ELM327Driver:
         text = text.replace(command.strip(), "", 1) if text.startswith(command.strip()) else text
         text = text.replace(">", "")
         lines = [ln.strip() for ln in text.replace("\r", "\n").split("\n") if ln.strip()]
+        # "SEARCHING..." is the adapter negotiating a protocol, not data - drop
+        # it so it never gets mistaken for a response.
+        lines = [ln for ln in lines if not ln.upper().startswith("SEARCHING")]
         if not lines:
-            raise ELM327Timeout(f"empty response to {command!r}")
+            raise ELM327Timeout(f"no response to {command!r} within {timeout}s")
         for line in lines:
             upper = line.upper()
             for token, meaning in _KNOWN_ERRORS.items():
@@ -138,10 +147,24 @@ class ELM327Driver:
         self._try("ATE0")  # echo off
         self._try("ATL0")  # linefeeds off
         self._try("ATS0")  # spaces off (denser, easier parsing)
-        self.set_headers(True)  # we want CAN IDs visible for VAG module addressing
+        # Headers OFF for standard OBD-II: we don't need CAN IDs there and
+        # they only add ambiguity to parsing (especially on K-line cars).
+        # The VAG raw layer turns them back on for itself when it needs them.
+        self.set_headers(False)
         self._try(f"ATSP{protocol.value}")
         self._protocol = protocol
+        # Warm up the protocol once, now, with a generous timeout: the first
+        # bus request on a real car triggers a 1-2s protocol search that
+        # answers "SEARCHING...". Doing it here means the search happens
+        # during connect instead of derailing the first real data read.
+        self._try_warmup()
         logger.info("ELM327 initialized (requested protocol=%s)", protocol.name)
+
+    def _try_warmup(self) -> None:
+        try:
+            self.send_command("0100", timeout=6.0)  # Mode 01 supported-PIDs; result ignored
+        except ELM327Error as exc:
+            logger.debug("Protocol warm-up did not complete (harmless): %s", exc)
 
     def _raw_reset(self) -> None:
         # ATZ (cold reset) takes ~1-2s on most chips and briefly drops the
@@ -174,6 +197,21 @@ class ELM327Driver:
         except ELM327Error:
             return None
         return OBDProtocol.from_dpn(reply)
+
+    def read_battery_voltage(self) -> float | None:
+        """Volts at the OBD connector, read via ATRV - the adapter's own
+        voltage pin. Works on every ELM327 regardless of what the car's ECU
+        supports (many older ECUs don't implement the Mode 01 voltage PID),
+        which is why the live battery gauge uses this rather than PID 0142."""
+        try:
+            reply = self.send_command("ATRV")
+        except ELM327Error:
+            return None
+        cleaned = reply.strip().upper().rstrip("V").strip()
+        try:
+            return round(float(cleaned), 2)
+        except ValueError:
+            return None
 
     def probe_capabilities(self) -> "AdapterCapabilities":
         """Ask the adapter which of the non-basic AT commands it actually

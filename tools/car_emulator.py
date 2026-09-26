@@ -38,6 +38,12 @@ class CarEmulator:
     def __init__(self, *, genuine: bool = False):
         self.genuine = genuine
         self.cleared = False
+        # This Simos ECU, like the real car, does NOT implement the Mode 01
+        # control-module-voltage PID (0142) - the app must fall back to ATRV.
+        self.supports_pid_0142 = False
+        # The first bus request triggers a protocol search; the adapter emits
+        # "SEARCHING..." before the data. We reproduce that once.
+        self._searched = False
         # A live powertrain bus, for adapters that can monitor it. 0x200/0x300
         # (the TP2.0 transmit IDs) are deliberately absent so the interlock
         # sees them as free.
@@ -73,6 +79,8 @@ class CarEmulator:
         if cmd == "010F":
             return f"41 0F {28 + 40:02X}"
         if cmd == "0142":
+            if not self.supports_pid_0142:
+                return "NO DATA"  # ECU doesn't implement it - app uses ATRV
             mv = int(14200 + 60 * math.sin(t * 3.0))
             return f"41 42 {mv >> 8:02X} {mv & 0xFF:02X}"
         return "NO DATA"
@@ -97,10 +105,16 @@ class CarEmulator:
         if cmd == "04":
             self.cleared = True
             return "44"
-        if cmd == "0902":
-            return "49 02 01 57 56 57 5A 5A 5A 31 4B 5A 38 57 30 30 30 30 30 31"
-        if cmd.startswith("01"):
-            return self._live(cmd)
+        if cmd.startswith("01") or cmd.startswith("09"):
+            # First real bus request negotiates a protocol: answer once with
+            # SEARCHING... before the data, like a real adapter on a cold link.
+            prefix = ""
+            if not self._searched:
+                self._searched = True
+                prefix = "SEARCHING...\r"
+            if cmd.startswith("09"):
+                return prefix + "49 02 01 57 56 57 5A 5A 5A 31 4B 5A 38 57 30 30 30 30 30 31"
+            return prefix + self._live(cmd)
         if cmd.endswith("C0FFFFFFFFFFFF"):
             return "NO DATA"  # no module answers the TP2.0 probe in this sim
         return "OK"

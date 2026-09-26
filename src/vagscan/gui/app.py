@@ -515,7 +515,13 @@ class VagscanApp(ttk.Frame):
             return
 
         def job():
-            return self.session.obd2.read_pids([pid for pid, *_ in LIVE_PIDS])
+            # The battery gauge reads ATRV (the adapter's own voltage pin),
+            # not Mode 01 PID 42 - many ECUs (this Simos included) don't
+            # implement that PID, which showed up as "n/d" while ATRV read a
+            # perfectly good 12.4 V. ATRV works on every ELM327.
+            values = self.session.obd2.read_pids([pid for pid, *_ in LIVE_PIDS if pid != "42"])
+            values["42"] = self.session.driver.read_battery_voltage()
+            return values
 
         def on_success(values):
             for pid, value in values.items():

@@ -44,6 +44,11 @@ class Transport(abc.ABC):
         Returns whatever was read (may be a partial/empty read on timeout).
         """
 
+    def reset_input(self) -> None:
+        """Discard any unread bytes waiting in the input buffer. Default
+        no-op; real serial links override it to clear a late reply that
+        would otherwise desynchronize the next request/response pair."""
+
     @contextlib.contextmanager
     def transaction(self):
         """Held across a full request+response exchange.

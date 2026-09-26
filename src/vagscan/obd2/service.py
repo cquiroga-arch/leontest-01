@@ -23,6 +23,23 @@ class ObdRequestError(Exception):
     """A Mode/PID request failed or returned unparseable data."""
 
 
+class ServiceNotSupported(ObdRequestError):
+    """The ECU explicitly rejected the request (negative response), i.e. it
+    doesn't support this mode. A normal outcome, not a fault - e.g. many
+    older ECUs don't implement permanent DTCs (Mode 0A)."""
+
+
+def _is_negative_response(response: str) -> bool:
+    """A K-line/KWP negative response is 7F <sid> <nrc>; the ELM327 surfaces
+    it as a data line containing 7F followed by the requested service. We
+    only need to know it's a rejection, not decode the NRC."""
+    for line in response.splitlines():
+        tokens = _HEX_BYTE.findall(line)
+        if any(int(t, 16) == 0x7F for t in tokens):
+            return True
+    return False
+
+
 @dataclass(frozen=True)
 class DTC:
     code: str  # e.g. "P0301"
@@ -113,13 +130,18 @@ class OBD2Service:
         """"NO DATA" from the adapter is the normal, expected reply when
         there simply are zero DTCs of this type (very common for Mode
         07/0A) - it's an ELM327Error token, but it isn't a fault, so it's
-        treated as an empty result rather than propagated."""
+        treated as an empty result rather than propagated. A negative
+        response (7F...) means the ECU doesn't support this mode at all -
+        also normal (many cars have no permanent-DTC mode), reported as
+        empty rather than as an error."""
         try:
             response = self._driver.send_command(request)
         except ELM327Error as exc:
             if "no data" in str(exc).lower():
                 return []
             raise
+        if _is_negative_response(response):
+            return []
         return decode_dtcs(_extract_bytes(response, expect_mode_ack=mode_ack))
 
     def read_stored_dtcs(self) -> list[DTC]:
@@ -143,10 +165,17 @@ class OBD2Service:
     # -- Mode 09: vehicle info ----------------------------------------------
     def read_vin(self) -> str | None:
         try:
-            response = self._driver.send_command("0902")
+            # Slightly longer timeout: the VIN is multi-frame and some
+            # adapters are slow to reassemble it.
+            response = self._driver.send_command("0902", timeout=5.0)
         except ELM327Error:
             return None
-        payload = _extract_bytes(response, expect_mode_ack="49")
+        if _is_negative_response(response):
+            return None
+        try:
+            payload = _extract_bytes(response, expect_mode_ack="49")
+        except ObdRequestError:
+            return None
         if not payload or payload[0] != 0x02:
             return None
         data = payload[1:]

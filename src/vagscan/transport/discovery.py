@@ -46,6 +46,7 @@ class ProbeResult:
     identity: str  # raw ATI reply, when we got one
     error: str = ""
     baudrate: int = 38400  # the baud rate the adapter actually answered at
+    saw_data: bool = False  # did the port return *any* bytes (vs. dead silence)
 
 
 def list_serial_ports() -> list[PortInfo]:
@@ -67,7 +68,7 @@ def guess_elm327_port() -> str | None:
     return None
 
 
-def probe_port(device: str, *, baudrate: int = 38400, timeout: float = 1.5) -> ProbeResult:
+def probe_port(device: str, *, baudrate: int = 38400, timeout: float = 1.0) -> ProbeResult:
     """Open one serial port and ask it who it is (ATI). Never raises: a port
     that's busy, permission-denied, or simply isn't an adapter comes back as
     `responded=False` with the reason, because probing is expected to hit
@@ -88,9 +89,10 @@ def probe_port(device: str, *, baudrate: int = 38400, timeout: float = 1.5) -> P
     text = reply.decode("ascii", errors="replace")
     lowered = text.lower()
     identity = " ".join(line.strip() for line in text.replace("\r", "\n").split("\n") if line.strip() and line.strip() != ">")
+    saw = bool(reply)
     if any(sig in lowered for sig in _ELM_SIGNATURES):
-        return ProbeResult(device=device, responded=True, identity=identity)
-    return ProbeResult(device=device, responded=False, identity=identity, error="did not identify as an ELM327")
+        return ProbeResult(device=device, responded=True, identity=identity, baudrate=baudrate, saw_data=saw)
+    return ProbeResult(device=device, responded=False, identity=identity, error="did not identify as an ELM327", saw_data=saw)
 
 
 def _read_until_prompt(port: serial.Serial, timeout: float) -> bytes:
@@ -141,11 +143,18 @@ def autodetect_elm327(
     `probe` is injectable so this can be tested without real hardware.
     """
     for device in candidate_ports():
-        for baud in baudrates:
+        for i, baud in enumerate(baudrates):
             logger.debug("Probing %s @ %d", device, baud)
             result = probe(device, baudrate=baud, timeout=timeout)
             if result.responded:
                 result.baudrate = baud
                 logger.info("Found ELM327 on %s @ %d: %s", result.device, baud, result.identity)
                 return result
+            # A port that returned nothing at all at the first baud is dead,
+            # unpowered, or not a serial device - trying the other baud rates
+            # on it just wastes a timeout each. Only keep trying alternate
+            # rates when the port actually said *something* (which is what a
+            # wrong-baud ELM327 does: garbage, not silence).
+            if i == 0 and not result.saw_data:
+                break
     return None
