@@ -54,7 +54,7 @@ def test_scan_collects_dtcs_with_knowledge_base_info():
     codes = [found.dtc.code for found in result.dtcs]
     assert codes == ["P0300", "P0171"]
     assert all(found.kind == "Almacenada" for found in result.dtcs)
-    assert "Misfire" in result.dtcs[0].title
+    assert "misfire" in result.dtcs[0].title.lower()
     assert result.dtcs[0].severity == "severe"
     assert result.adapter == "ELM327 v1.5"
     assert result.voltage == "12.6V"

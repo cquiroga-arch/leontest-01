@@ -34,6 +34,19 @@ LIVE_PIDS = [
 
 LIVE_INTERVAL_MS = 600
 
+# Internal severity keys -> what the user sees. The keys stay in English so
+# the data files and logic don't churn; only the display is Spanish.
+SEVERITY_ES = {
+    "severe": "grave",
+    "moderate": "moderada",
+    "informational": "informativa",
+    "unknown": "desconocida",
+}
+
+
+def _severity_es(severity: str) -> str:
+    return SEVERITY_ES.get(severity, severity)
+
 ABOUT_TEXT = """VAGScan - lo que hace y sus límites
 
 Cómo se usa: enchufá el ELM327 al conector OBD del auto, emparejalo por
@@ -309,7 +322,7 @@ class VagscanApp(ttk.Frame):
             self.scan_tree.insert(engine_node, "end", text="Sin fallas", values=("No hay códigos almacenados.", "OK"))
         for found in result.dtcs:
             iid = self.scan_tree.insert(
-                engine_node, "end", text=found.dtc.code, values=(found.title, f"{found.kind} · {found.severity}")
+                engine_node, "end", text=found.dtc.code, values=(found.title, f"{found.kind} · {_severity_es(found.severity)}")
             )
             self._scan_rows[iid] = found
 
@@ -433,7 +446,7 @@ class VagscanApp(ttk.Frame):
             for kind, dtcs in by_kind.items():
                 for dtc in dtcs:
                     info = self.session.dtc_db.describe(dtc.code)  # never None
-                    iid = self.dtc_tree.insert("", "end", values=(kind, dtc.code, info.title, info.severity))
+                    iid = self.dtc_tree.insert("", "end", values=(kind, dtc.code, info.title, _severity_es(info.severity)))
                     self._dtc_rows[iid] = (dtc.code, info)
                     count += 1
             self._set_status(f"{count} fallas encontradas." if count else "Sin fallas almacenadas.", "ok")

@@ -1,412 +1,363 @@
 [
   {
-    "code": "P0030", "system": "engine", "title": "Calefactor sonda lambda - circuito (Banco 1 Sensor 1)",
-    "description": "El circuito del calefactor de la sonda lambda anterior al catalizador tiene una falla eléctrica.",
-    "common_causes": ["Resistencia calefactora de la sonda abierta", "Fusible del calefactor de sondas quemado", "Conector de la sonda corroído"],
-    "suggested_checks": ["Medir la resistencia del calefactor de la sonda (típico 2-15 ohm según modelo)", "Revisar el fusible que alimenta las sondas", "Inspeccionar el conector de la sonda por corrosión/humedad"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "P0036", "system": "engine", "title": "Calefactor sonda lambda - circuito (Banco 1 Sensor 2)",
-    "description": "El circuito del calefactor de la sonda lambda posterior al catalizador (la de después del cat) tiene una falla eléctrica. Muy común en el 1.6 por la edad de la sonda trasera.",
-    "common_causes": ["Resistencia calefactora de la sonda trasera abierta (sonda al final de su vida)", "Conector de la sonda trasera corroído o con humedad", "Cableado hacia la sonda dañado por calor del escape", "Fusible del calefactor de sondas"],
-    "suggested_checks": ["Medir la resistencia del calefactor de la sonda trasera; si está abierta, reemplazar la sonda", "Revisar el conector bajo el auto por corrosión", "Verificar el fusible de sondas", "Si la sonda tiene muchos km, lo más probable es reemplazarla"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "P0100", "system": "engine", "title": "Mass or Volume Air Flow Circuit Malfunction",
-    "description": "MAF sensor signal out of expected range.",
-    "common_causes": ["Dirty or failing MAF sensor", "Air leak between MAF and throttle body", "Wiring/connector fault"],
-    "suggested_checks": ["Inspect intake tubing for cracks/loose clamps after the MAF", "Clean MAF sensor element with dedicated MAF cleaner", "Check MAF connector pins for corrosion"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "P0101", "system": "engine", "title": "Mass or Volume Air Flow Circuit Range/Performance",
-    "description": "MAF reading implausible relative to other sensors (TPS/RPM).",
-    "common_causes": ["Dirty MAF element", "Vacuum leak", "Aftermarket intake/filter disrupting airflow measurement"],
-    "suggested_checks": ["Clean MAF", "Smoke-test intake for vacuum leaks", "Revert non-OEM intake parts to compare"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "P0102", "system": "engine", "title": "Mass or Volume Air Flow Circuit Low Input",
-    "description": "MAF signal reading lower than expected.",
-    "common_causes": ["Wiring short to ground", "Failed MAF sensor", "Loose connector"],
-    "suggested_checks": ["Check wiring continuity/insulation", "Swap/test MAF sensor"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "P0103", "system": "engine", "title": "Mass or Volume Air Flow Circuit High Input",
-    "description": "MAF signal reading higher than expected.",
-    "common_causes": ["Wiring short to voltage", "Failed MAF sensor"],
-    "suggested_checks": ["Check wiring for chafing against a 12V source", "Swap/test MAF sensor"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "P0110", "system": "engine", "title": "Intake Air Temperature Circuit Malfunction",
-    "description": "IAT sensor signal out of expected range.",
-    "common_causes": ["Failed IAT sensor (often integrated in MAF)", "Wiring/connector fault"],
-    "suggested_checks": ["Check IAT sensor resistance vs temperature chart", "Inspect connector"],
-    "severity": "informational", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "P0115", "system": "engine", "title": "Engine Coolant Temperature Circuit Malfunction",
-    "description": "ECT sensor signal out of expected range.",
-    "common_causes": ["Failed ECT sensor", "Wiring/connector fault", "Low coolant level exposing sensor"],
-    "suggested_checks": ["Check coolant level", "Test ECT sensor resistance", "Inspect wiring"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "P0116", "system": "engine", "title": "Engine Coolant Temperature Circuit Range/Performance",
-    "description": "ECT reading implausible (e.g. never reaches operating temperature).",
-    "common_causes": ["Stuck-open thermostat", "Failing ECT sensor"],
-    "suggested_checks": ["Verify thermostat opens/closes correctly", "Compare ECT reading to known-good gauge"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "P0120", "system": "engine", "title": "Throttle/Pedal Position Sensor A Circuit Malfunction",
-    "description": "TPS signal out of expected range.",
-    "common_causes": ["Failed TPS", "Wiring/connector fault", "Throttle body carbon buildup affecting sensor coupling"],
-    "suggested_checks": ["Inspect throttle body/TPS connector", "Clean throttle body", "Test TPS signal with multimeter through full throttle sweep"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "P0130", "system": "engine", "title": "O2 Sensor Circuit Malfunction (Bank 1 Sensor 1)",
-    "description": "Upstream oxygen/lambda sensor signal implausible.",
-    "common_causes": ["Failed O2 sensor", "Exhaust leak upstream of sensor", "Wiring/connector fault"],
-    "suggested_checks": ["Inspect exhaust manifold/downpipe for leaks", "Check O2 sensor heater circuit", "Test/replace O2 sensor"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "P0133", "system": "engine", "title": "O2 Sensor Circuit Slow Response (Bank 1 Sensor 1)",
-    "description": "Upstream O2 sensor switching too slowly between rich/lean.",
-    "common_causes": ["Aging O2 sensor", "Exhaust leak", "Contaminated sensor (oil/coolant burning)"],
-    "suggested_checks": ["Check for exhaust leaks", "Replace O2 sensor if aged", "Check for oil/coolant consumption"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "P0134", "system": "engine", "title": "O2 Sensor Circuit No Activity Detected (Bank 1 Sensor 1)",
-    "description": "Upstream O2 sensor signal not changing at all.",
-    "common_causes": ["Failed O2 sensor", "Open circuit in wiring", "Sensor heater failure preventing sensor from reaching operating temp"],
-    "suggested_checks": ["Check sensor heater circuit resistance", "Inspect wiring continuity", "Replace sensor"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "P0171", "system": "engine", "title": "System Too Lean (Bank 1)",
-    "description": "Long-term fuel trim compensating for a lean condition beyond normal limits.",
-    "common_causes": ["Vacuum/intake leak", "Weak fuel pump / low fuel pressure", "Dirty/failing MAF", "Clogged fuel injector(s)"],
-    "suggested_checks": ["Smoke-test intake and vacuum lines", "Check fuel pressure at rail", "Clean MAF", "Inspect injector spray pattern"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "P0172", "system": "engine", "title": "System Too Rich (Bank 1)",
-    "description": "Long-term fuel trim compensating for a rich condition beyond normal limits.",
-    "common_causes": ["Leaking/stuck-open injector", "Failed MAF overreading", "Fuel pressure regulator fault", "Contaminated/failing O2 sensor"],
-    "suggested_checks": ["Check fuel pressure regulator/vacuum line", "Inspect injectors for leaking", "Test MAF against known-good values"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "P0300", "system": "engine", "title": "Random/Multiple Cylinder Misfire Detected",
-    "description": "Misfires detected without a consistent single-cylinder pattern.",
-    "common_causes": ["Worn spark plugs/coil packs", "Vacuum leak", "Low fuel pressure", "Intake manifold gasket leak (common on 1.6 8V EA111-family engines)"],
-    "suggested_checks": ["Inspect/replace spark plugs", "Swap ignition coils between cylinders to see if misfire follows", "Check intake manifold gasket for leaks", "Check fuel pressure"],
-    "severity": "severe", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "P0301", "system": "engine", "title": "Cylinder 1 Misfire Detected", "description": "Misfire isolated to cylinder 1.",
-    "common_causes": ["Worn spark plug/coil on cyl 1", "Injector fault cyl 1", "Low compression cyl 1"],
-    "suggested_checks": ["Swap coil/plug from another cylinder and retest", "Compression test", "Check injector"],
-    "severity": "severe", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "P0302", "system": "engine", "title": "Cylinder 2 Misfire Detected", "description": "Misfire isolated to cylinder 2.",
-    "common_causes": ["Worn spark plug/coil on cyl 2", "Injector fault cyl 2", "Low compression cyl 2"],
-    "suggested_checks": ["Swap coil/plug from another cylinder and retest", "Compression test", "Check injector"],
-    "severity": "severe", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "P0303", "system": "engine", "title": "Cylinder 3 Misfire Detected", "description": "Misfire isolated to cylinder 3.",
-    "common_causes": ["Worn spark plug/coil on cyl 3", "Injector fault cyl 3", "Low compression cyl 3"],
-    "suggested_checks": ["Swap coil/plug from another cylinder and retest", "Compression test", "Check injector"],
-    "severity": "severe", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "P0304", "system": "engine", "title": "Cylinder 4 Misfire Detected", "description": "Misfire isolated to cylinder 4.",
-    "common_causes": ["Worn spark plug/coil on cyl 4", "Injector fault cyl 4", "Low compression cyl 4"],
-    "suggested_checks": ["Swap coil/plug from another cylinder and retest", "Compression test", "Check injector"],
-    "severity": "severe", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "P0325", "system": "engine", "title": "Knock Sensor 1 Circuit Malfunction",
-    "description": "Knock sensor signal implausible.",
-    "common_causes": ["Failed knock sensor", "Loose sensor mounting torque", "Wiring fault"],
-    "suggested_checks": ["Check sensor mounting torque", "Test sensor resistance/signal", "Inspect wiring"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "P0335", "system": "engine", "title": "Crankshaft Position Sensor A Circuit Malfunction",
-    "description": "Crank position sensor signal missing/implausible.",
-    "common_causes": ["Failed crank sensor", "Damaged/oily reluctor ring", "Wiring fault"],
-    "suggested_checks": ["Inspect crank sensor and reluctor ring for oil contamination", "Test sensor resistance", "Check wiring/connector"],
-    "severity": "severe", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "P0340", "system": "engine", "title": "Camshaft Position Sensor A Circuit Malfunction",
-    "description": "Cam position sensor signal missing/implausible.",
-    "common_causes": ["Failed cam sensor", "Timing belt/chain wear affecting signal timing", "Wiring fault"],
-    "suggested_checks": ["Test cam sensor signal", "Verify timing belt/chain condition and marks", "Inspect wiring"],
-    "severity": "severe", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "P0400", "system": "engine", "title": "Exhaust Gas Recirculation Flow Malfunction",
-    "description": "EGR flow different than commanded.",
-    "common_causes": ["Carboned-up EGR valve/passages", "Failed EGR valve/actuator"],
-    "suggested_checks": ["Remove and clean EGR valve/passages", "Test EGR valve actuation"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "P0420", "system": "engine", "title": "Catalyst System Efficiency Below Threshold (Bank 1)",
-    "description": "Downstream O2 sensor switching pattern too similar to upstream, indicating reduced catalyst efficiency.",
-    "common_causes": ["Aging/failed catalytic converter", "Exhaust leak near sensors", "Underlying misfire/rich condition damaging catalyst", "Failed downstream O2 sensor"],
-    "suggested_checks": ["Rule out misfires/fuel trim faults first (root cause of premature cat death)", "Inspect exhaust for leaks", "Compare upstream/downstream O2 waveforms", "Test/replace catalytic converter if confirmed"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "P0440", "system": "engine", "title": "Evaporative Emission Control System Malfunction",
-    "description": "EVAP system leak or flow fault detected.",
-    "common_causes": ["Loose/missing fuel cap", "Cracked EVAP hose", "Failed purge/vent valve"],
-    "suggested_checks": ["Check fuel cap seats and seals properly", "Smoke-test EVAP system", "Test purge valve operation"],
-    "severity": "informational", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "P0442", "system": "engine", "title": "EVAP System Small Leak Detected",
-    "description": "Small leak detected in EVAP system.",
-    "common_causes": ["Loose fuel cap", "Small crack in EVAP hose/canister"],
-    "suggested_checks": ["Check/replace fuel cap", "Smoke-test EVAP system for small leaks"],
-    "severity": "informational", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "P0455", "system": "engine", "title": "EVAP System Large Leak Detected",
-    "description": "Large leak detected in EVAP system.",
-    "common_causes": ["Missing/loose fuel cap", "Disconnected EVAP hose"],
-    "suggested_checks": ["Check fuel cap is present and tight", "Inspect EVAP hoses for disconnection"],
-    "severity": "informational", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "P0500", "system": "engine", "title": "Vehicle Speed Sensor Malfunction",
-    "description": "VSS signal missing/implausible.",
-    "common_causes": ["Failed VSS/ABS wheel speed input feeding it", "Wiring fault"],
-    "suggested_checks": ["Cross-check ABS wheel speed sensors", "Inspect wiring/connector"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "P0505", "system": "engine", "title": "Idle Control System Malfunction",
-    "description": "Idle air control unable to maintain commanded idle.",
-    "common_causes": ["Carboned throttle body", "Vacuum leak", "Failed idle actuator (throttle body integrated on drive-by-wire engines)"],
-    "suggested_checks": ["Clean throttle body", "Smoke-test for vacuum leaks", "Perform throttle body adaptation after cleaning"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "P0562", "system": "engine", "title": "System Voltage Low",
-    "description": "ECU-measured supply voltage below expected range.",
-    "common_causes": ["Weak/failing battery", "Failing alternator", "Poor ground/battery terminal connection"],
-    "suggested_checks": ["Load-test battery", "Check alternator output under load", "Clean/tighten battery terminals and ground straps"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "P0600", "system": "engine", "title": "Serial Communication Link Malfunction",
-    "description": "ECU internal communication bus fault.",
-    "common_causes": ["Wiring/connector fault on the vehicle's internal data bus", "ECU fault"],
-    "suggested_checks": ["Check for other simultaneous U0xxx network codes across modules", "Inspect main bus wiring/grounds"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "P0700", "system": "transmission", "title": "Transmission Control System Malfunction",
-    "description": "TCU has reported a fault to the ECU; check the TCU directly for the specific underlying code.",
-    "common_causes": ["Depends on the TCU's own stored fault - this code is only a cross-reference"],
-    "suggested_checks": ["Scan the transmission control module directly for its specific DTC"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "C0035", "system": "abs", "title": "Left Front Wheel Speed Sensor Circuit",
-    "description": "ABS/ESP module lost or implausible signal from left-front wheel speed sensor.",
-    "common_causes": ["Damaged sensor or tone ring", "Wiring/connector corrosion", "Sensor air gap fouled with debris"],
-    "suggested_checks": ["Inspect sensor and tone ring for damage/debris", "Check wiring continuity and connector corrosion"],
-    "severity": "severe", "source": "SAE J2012 generic definition (chassis codes vary somewhat by manufacturer)"
-  },
-  {
-    "code": "C0040", "system": "abs", "title": "Right Front Wheel Speed Sensor Circuit",
-    "description": "ABS/ESP module lost or implausible signal from right-front wheel speed sensor.",
-    "common_causes": ["Damaged sensor or tone ring", "Wiring/connector corrosion", "Sensor air gap fouled with debris"],
-    "suggested_checks": ["Inspect sensor and tone ring for damage/debris", "Check wiring continuity and connector corrosion"],
-    "severity": "severe", "source": "SAE J2012 generic definition (chassis codes vary somewhat by manufacturer)"
-  },
-  {
-    "code": "U0100", "system": "network", "title": "Lost Communication With ECM/PCM",
-    "description": "A module on the vehicle bus reports it can no longer talk to the engine control module.",
-    "common_causes": ["ECU power/ground fault", "Bus wiring fault (open/short)", "Blown ECU fuse"],
-    "suggested_checks": ["Check ECU fuse and main power/ground", "Inspect CAN-H/CAN-L wiring for damage", "Check for a module drawing the bus down (short)"],
-    "severity": "severe", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "U0121", "system": "network", "title": "Lost Communication With ABS Control Module",
-    "description": "A module reports it can no longer talk to the ABS/ESP module.",
-    "common_causes": ["ABS module power/ground fault", "Bus wiring fault", "Blown ABS fuse"],
-    "suggested_checks": ["Check ABS module fuse and power/ground", "Inspect CAN wiring to the ABS module"],
-    "severity": "severe", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "U0155", "system": "network", "title": "Lost Communication With Instrument Panel Cluster",
-    "description": "A module reports it can no longer talk to the instrument cluster.",
-    "common_causes": ["Cluster power/ground fault", "Bus wiring fault", "Failed cluster"],
-    "suggested_checks": ["Check cluster fuse/power", "Inspect wiring to the cluster"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
-  },
-  {
-    "code": "B0001", "system": "airbag", "title": "Driver Frontal Deployment Control (generic)",
-    "description": "Generic placeholder for driver airbag deployment-loop faults; manufacturer-specific detail varies.",
-    "common_causes": ["Squib circuit open/short", "Clockspring (rotary coupler) wear", "Connector corrosion"],
-    "suggested_checks": ["Have a qualified airbag technician inspect the clockspring and squib wiring before clearing this code", "Do not probe pyrotechnic squib circuits with a generic multimeter - use a purpose-built airbag simulator/resistor tool"],
-    "severity": "severe", "source": "SAE J2012 generic definition (airbag codes are heavily manufacturer-specific - treat this as a starting point only)"
-  },
-  {
     "code": "P0011", "system": "engine", "title": "Posición del árbol de levas (admisión) - avance/rendimiento (Banco 1)",
     "description": "El variador de fase (VVT) del árbol de admisión no alcanza la posición comandada.",
     "common_causes": ["Aceite sucio o de viscosidad incorrecta obstruyendo el variador", "Válvula de control de aceite del VVT trabada", "Nivel de aceite bajo", "Cadena/tensor con desgaste"],
     "suggested_checks": ["Verificar nivel y estado del aceite; hacer cambio si está sucio", "Revisar/limpiar la válvula solenoide de control de aceite del VVT", "Verificar la puesta a punto de la distribución"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
+    "severity": "moderate", "source": "definición genérica SAE J2012"
   },
   {
     "code": "P0016", "system": "engine", "title": "Correlación cigüeñal-árbol de levas (Banco 1)",
     "description": "La posición del cigüeñal y la del árbol de levas no coinciden: la distribución está fuera de sincronía.",
     "common_causes": ["Cadena/correa de distribución saltada un diente o estirada", "Tensor de cadena gastado", "Sensor de árbol o de cigüeñal defectuoso"],
     "suggested_checks": ["Verificar la puesta a punto de la distribución con las marcas", "Revisar el tensor de cadena", "Comprobar señales de los sensores de cigüeñal y árbol de levas"],
-    "severity": "severe", "source": "SAE J2012 generic definition"
+    "severity": "severe", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "P0030", "system": "engine", "title": "Calefactor sonda lambda - circuito (Banco 1 Sensor 1)",
+    "description": "El circuito del calefactor de la sonda lambda anterior al catalizador tiene una falla eléctrica.",
+    "common_causes": ["Resistencia calefactora de la sonda abierta", "Fusible del calefactor de sondas quemado", "Conector de la sonda corroído"],
+    "suggested_checks": ["Medir la resistencia del calefactor de la sonda (típico 2-15 ohm según modelo)", "Revisar el fusible que alimenta las sondas", "Inspeccionar el conector de la sonda por corrosión/humedad"],
+    "severity": "moderate", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "P0036", "system": "engine", "title": "Calefactor sonda lambda - circuito (Banco 1 Sensor 2)",
+    "description": "El circuito del calefactor de la sonda lambda posterior al catalizador (la de después del cat) tiene una falla eléctrica. Muy común en el 1.6 por la edad de la sonda trasera.",
+    "common_causes": ["Resistencia calefactora de la sonda trasera abierta (sonda al final de su vida)", "Conector de la sonda trasera corroído o con humedad", "Cableado hacia la sonda dañado por calor del escape", "Fusible del calefactor de sondas"],
+    "suggested_checks": ["Medir la resistencia del calefactor de la sonda trasera; si está abierta, reemplazar la sonda", "Revisar el conector bajo el auto por corrosión", "Verificar el fusible de sondas", "Si la sonda tiene muchos km, lo más probable es reemplazarla"],
+    "severity": "moderate", "source": "definición genérica SAE J2012"
   },
   {
     "code": "P0087", "system": "engine", "title": "Presión de riel/sistema de combustible demasiado baja",
     "description": "La presión de combustible está por debajo de lo esperado.",
     "common_causes": ["Filtro de combustible tapado", "Bomba de combustible débil", "Regulador de presión con fuga", "Fugas en las cañerías de combustible"],
     "suggested_checks": ["Medir la presión de combustible en el riel", "Reemplazar el filtro de combustible si tiene muchos km", "Verificar caudal de la bomba"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
+    "severity": "moderate", "source": "definición genérica SAE J2012"
   },
   {
-    "code": "P0101", "system": "engine", "title": "MAF - rango/rendimiento",
-    "description": "La lectura del caudalímetro (MAF) es implausible respecto de otros sensores.",
-    "common_causes": ["MAF sucio", "Fuga de aire después del MAF", "Filtro de aire muy sucio"],
-    "suggested_checks": ["Limpiar el MAF con limpiador específico", "Buscar fugas de admisión", "Revisar filtro de aire"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
+    "code": "P0100", "system": "engine", "title": "Caudalímetro de aire (MAF) - falla de circuito",
+    "description": "La señal del sensor MAF (medidor de masa de aire) está fuera del rango esperado.",
+    "common_causes": ["Sensor MAF sucio o en falla", "Fuga de aire entre el MAF y la mariposa", "Cableado o conector con falla"],
+    "suggested_checks": ["Revisar los conductos de admisión por fisuras/abrazaderas flojas después del MAF", "Limpiar el elemento del MAF con limpiador específico", "Revisar los pines del conector del MAF por corrosión"],
+    "severity": "moderate", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "P0101", "system": "engine", "title": "Caudalímetro de aire (MAF) - rango/rendimiento",
+    "description": "La lectura del MAF es implausible respecto de otros sensores (mariposa/RPM).",
+    "common_causes": ["Elemento del MAF sucio", "Fuga de vacío", "Admisión/filtro no original que altera la medición"],
+    "suggested_checks": ["Limpiar el MAF", "Buscar fugas de admisión con humo", "Volver a piezas de admisión originales para comparar"],
+    "severity": "moderate", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "P0102", "system": "engine", "title": "Caudalímetro de aire (MAF) - señal baja",
+    "description": "La señal del MAF es más baja de lo esperado.",
+    "common_causes": ["Cortocircuito a masa en el cableado", "Sensor MAF en falla", "Conector flojo"],
+    "suggested_checks": ["Revisar continuidad/aislación del cableado", "Cambiar/probar el sensor MAF"],
+    "severity": "moderate", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "P0103", "system": "engine", "title": "Caudalímetro de aire (MAF) - señal alta",
+    "description": "La señal del MAF es más alta de lo esperado.",
+    "common_causes": ["Cortocircuito a positivo en el cableado", "Sensor MAF en falla"],
+    "suggested_checks": ["Revisar el cableado por roce contra una fuente de 12V", "Cambiar/probar el sensor MAF"],
+    "severity": "moderate", "source": "definición genérica SAE J2012"
   },
   {
     "code": "P0106", "system": "engine", "title": "Sensor MAP - rango/rendimiento",
     "description": "La presión del múltiple (MAP) no varía de forma coherente con la carga del motor.",
     "common_causes": ["Manguera de vacío del MAP tapada o rota", "Sensor MAP sucio/defectuoso", "Fuga de vacío"],
     "suggested_checks": ["Revisar la manguera de vacío del MAP", "Limpiar/probar el sensor MAP", "Buscar fugas de vacío"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
+    "severity": "moderate", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "P0110", "system": "engine", "title": "Sensor de temperatura de admisión (IAT) - falla de circuito",
+    "description": "La señal del sensor IAT está fuera del rango esperado.",
+    "common_causes": ["Sensor IAT en falla (suele estar integrado en el MAF)", "Cableado o conector con falla"],
+    "suggested_checks": ["Comparar la resistencia del sensor IAT con la tabla de temperatura", "Inspeccionar el conector"],
+    "severity": "informational", "source": "definición genérica SAE J2012"
   },
   {
     "code": "P0113", "system": "engine", "title": "Sensor temperatura de admisión (IAT) - señal alta",
     "description": "La señal del sensor de temperatura de aire indica un valor demasiado alto (o circuito abierto).",
     "common_causes": ["Sensor IAT defectuoso (suele estar integrado en el MAF)", "Conector flojo o sucio", "Cableado cortado"],
     "suggested_checks": ["Revisar conector del MAF/IAT", "Medir la resistencia del sensor vs temperatura"],
-    "severity": "informational", "source": "SAE J2012 generic definition"
+    "severity": "informational", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "P0115", "system": "engine", "title": "Sensor de temperatura de refrigerante (ECT) - falla de circuito",
+    "description": "La señal del sensor de temperatura de refrigerante está fuera del rango esperado.",
+    "common_causes": ["Sensor ECT en falla", "Cableado o conector con falla", "Nivel de refrigerante bajo que deja el sensor al aire"],
+    "suggested_checks": ["Revisar el nivel de refrigerante", "Medir la resistencia del sensor ECT", "Inspeccionar el cableado"],
+    "severity": "moderate", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "P0116", "system": "engine", "title": "Sensor de temperatura de refrigerante (ECT) - rango/rendimiento",
+    "description": "La lectura del ECT es implausible (por ejemplo, nunca llega a temperatura de operación).",
+    "common_causes": ["Termostato trabado abierto", "Sensor ECT en falla"],
+    "suggested_checks": ["Verificar que el termostato abra/cierre correctamente", "Comparar la lectura del ECT con un instrumento confiable"],
+    "severity": "moderate", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "P0120", "system": "engine", "title": "Sensor de posición de mariposa/pedal A - falla de circuito",
+    "description": "La señal del sensor de mariposa (TPS) está fuera del rango esperado.",
+    "common_causes": ["TPS en falla", "Cableado o conector con falla", "Acumulación de carbón en la mariposa que afecta el sensor"],
+    "suggested_checks": ["Inspeccionar el conector del cuerpo de mariposa/TPS", "Limpiar el cuerpo de mariposa", "Medir la señal del TPS con multímetro en todo el recorrido"],
+    "severity": "moderate", "source": "definición genérica SAE J2012"
   },
   {
     "code": "P0122", "system": "engine", "title": "Sensor de posición de mariposa (TPS) - señal baja",
     "description": "La señal del sensor de mariposa es demasiado baja.",
     "common_causes": ["Cuerpo de mariposa sucio", "Sensor/potenciómetro de mariposa gastado", "Conector o cableado con falla"],
     "suggested_checks": ["Limpiar el cuerpo de mariposa", "Hacer la adaptación de mariposa tras limpiar", "Revisar conector"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
+    "severity": "moderate", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "P0130", "system": "engine", "title": "Sonda lambda - falla de circuito (Banco 1 Sensor 1)",
+    "description": "La señal de la sonda de oxígeno anterior al catalizador es implausible.",
+    "common_causes": ["Sonda lambda en falla", "Fuga de escape antes de la sonda", "Cableado o conector con falla"],
+    "suggested_checks": ["Inspeccionar el múltiple/bajante de escape por fugas", "Revisar el circuito del calefactor de la sonda", "Probar/reemplazar la sonda lambda"],
+    "severity": "moderate", "source": "definición genérica SAE J2012"
   },
   {
     "code": "P0131", "system": "engine", "title": "Sonda lambda - señal baja (Banco 1 Sensor 1)",
     "description": "La sonda anterior al catalizador reporta tensión baja de forma persistente (mezcla pobre o sonda en falla).",
     "common_causes": ["Sonda lambda gastada", "Fuga de escape antes de la sonda", "Mezcla realmente pobre (fuga de admisión)"],
     "suggested_checks": ["Buscar fugas de escape cerca del múltiple", "Revisar fugas de admisión", "Reemplazar la sonda si está vieja"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
+    "severity": "moderate", "source": "definición genérica SAE J2012"
   },
   {
     "code": "P0132", "system": "engine", "title": "Sonda lambda - señal alta (Banco 1 Sensor 1)",
     "description": "La sonda anterior al catalizador reporta tensión alta persistente (mezcla rica o corto).",
     "common_causes": ["Mezcla rica", "Cortocircuito en el cableado de la sonda", "Sonda contaminada"],
     "suggested_checks": ["Revisar presión de combustible e inyectores", "Inspeccionar cableado de la sonda", "Reemplazar sonda si corresponde"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
+    "severity": "moderate", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "P0133", "system": "engine", "title": "Sonda lambda - respuesta lenta (Banco 1 Sensor 1)",
+    "description": "La sonda anterior al catalizador cambia demasiado lento entre rica y pobre.",
+    "common_causes": ["Sonda lambda envejecida", "Fuga de escape", "Sonda contaminada (por consumo de aceite/refrigerante)"],
+    "suggested_checks": ["Revisar fugas de escape", "Reemplazar la sonda si está vieja", "Verificar consumo de aceite/refrigerante"],
+    "severity": "moderate", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "P0134", "system": "engine", "title": "Sonda lambda - sin actividad detectada (Banco 1 Sensor 1)",
+    "description": "La señal de la sonda anterior al catalizador no cambia en absoluto.",
+    "common_causes": ["Sonda lambda en falla", "Circuito abierto en el cableado", "Falla del calefactor que impide que la sonda alcance temperatura"],
+    "suggested_checks": ["Medir la resistencia del circuito del calefactor", "Revisar continuidad del cableado", "Reemplazar la sonda"],
+    "severity": "moderate", "source": "definición genérica SAE J2012"
   },
   {
     "code": "P0141", "system": "engine", "title": "Calefactor sonda lambda trasera - rendimiento (Banco 1 Sensor 2)",
     "description": "El calefactor de la sonda posterior al catalizador no calienta como debe.",
     "common_causes": ["Sonda trasera gastada", "Cableado/conector del calefactor", "Fusible de sondas"],
     "suggested_checks": ["Medir resistencia del calefactor de la sonda trasera", "Revisar conector y fusible"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
+    "severity": "moderate", "source": "definición genérica SAE J2012"
   },
   {
     "code": "P0170", "system": "engine", "title": "Ajuste de combustible fuera de rango (Banco 1)",
     "description": "La ECU no puede mantener la mezcla dentro de los límites normales de corrección.",
     "common_causes": ["Fuga de admisión/vacío", "MAF sucio", "Presión de combustible incorrecta", "Inyectores sucios"],
     "suggested_checks": ["Buscar fugas de admisión con humo", "Limpiar MAF", "Medir presión de combustible"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
+    "severity": "moderate", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "P0171", "system": "engine", "title": "Sistema demasiado pobre (Banco 1)",
+    "description": "La corrección de combustible de largo plazo está compensando una mezcla pobre más allá de lo normal.",
+    "common_causes": ["Fuga de vacío/admisión", "Bomba de combustible débil / presión baja", "MAF sucio o en falla", "Inyector(es) obstruido(s)"],
+    "suggested_checks": ["Probar admisión y líneas de vacío con humo", "Medir la presión de combustible en el riel", "Limpiar el MAF", "Revisar el patrón de rociado de los inyectores"],
+    "severity": "moderate", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "P0172", "system": "engine", "title": "Sistema demasiado rico (Banco 1)",
+    "description": "La corrección de combustible de largo plazo está compensando una mezcla rica más allá de lo normal.",
+    "common_causes": ["Inyector con fuga o trabado abierto", "MAF sobre-leyendo", "Regulador de presión de combustible en falla", "Sonda lambda contaminada/en falla"],
+    "suggested_checks": ["Revisar el regulador de presión/manguera de vacío", "Inspeccionar inyectores por fugas", "Comparar el MAF con valores de referencia"],
+    "severity": "moderate", "source": "definición genérica SAE J2012"
   },
   {
     "code": "P0234", "system": "engine", "title": "Sobrepresión de turbo/compresor",
     "description": "Presión de sobrealimentación por encima de lo permitido (aplica a versiones turbo).",
     "common_causes": ["Válvula waste-gate trabada", "Sensor de presión de turbo", "Actuador de turbo"],
     "suggested_checks": ["Revisar waste-gate y su actuador", "Comprobar el sensor de presión de sobrealimentación"],
-    "severity": "moderate", "source": "SAE J2012 generic definition (aplica solo a versiones turbo)"
+    "severity": "moderate", "source": "definición genérica SAE J2012 (aplica solo a versiones turbo)"
   },
   {
     "code": "P0299", "system": "engine", "title": "Turbo/compresor - baja presión (underboost)",
     "description": "La presión de sobrealimentación es menor a la esperada (versiones turbo).",
     "common_causes": ["Fuga en mangueras de presión (intercooler)", "Waste-gate abierta", "Turbo desgastado"],
     "suggested_checks": ["Buscar fugas en el circuito de presión", "Revisar el actuador de la waste-gate"],
-    "severity": "moderate", "source": "SAE J2012 generic definition (aplica solo a versiones turbo)"
+    "severity": "moderate", "source": "definición genérica SAE J2012 (aplica solo a versiones turbo)"
+  },
+  {
+    "code": "P0300", "system": "engine", "title": "Fallo de encendido (misfire) múltiple/aleatorio",
+    "description": "Se detectan fallos de encendido sin un patrón fijo en un solo cilindro.",
+    "common_causes": ["Bujías/bobinas gastadas", "Fuga de vacío", "Presión de combustible baja", "Fuga en la junta del múltiple de admisión (común en motores 1.6 8V familia EA111)"],
+    "suggested_checks": ["Inspeccionar/reemplazar bujías", "Intercambiar bobinas entre cilindros para ver si el fallo se muda", "Revisar la junta del múltiple de admisión por fugas", "Medir la presión de combustible"],
+    "severity": "severe", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "P0301", "system": "engine", "title": "Fallo de encendido (misfire) cilindro 1", "description": "Fallo de encendido aislado en el cilindro 1.",
+    "common_causes": ["Bujía/bobina gastada en el cil. 1", "Inyector en falla cil. 1", "Compresión baja en el cil. 1"],
+    "suggested_checks": ["Intercambiar bobina/bujía con otro cilindro y reescanear", "Prueba de compresión", "Revisar el inyector"],
+    "severity": "severe", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "P0302", "system": "engine", "title": "Fallo de encendido (misfire) cilindro 2", "description": "Fallo de encendido aislado en el cilindro 2.",
+    "common_causes": ["Bujía/bobina gastada en el cil. 2", "Inyector en falla cil. 2", "Compresión baja en el cil. 2"],
+    "suggested_checks": ["Intercambiar bobina/bujía con otro cilindro y reescanear", "Prueba de compresión", "Revisar el inyector"],
+    "severity": "severe", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "P0303", "system": "engine", "title": "Fallo de encendido (misfire) cilindro 3", "description": "Fallo de encendido aislado en el cilindro 3.",
+    "common_causes": ["Bujía/bobina gastada en el cil. 3", "Inyector en falla cil. 3", "Compresión baja en el cil. 3"],
+    "suggested_checks": ["Intercambiar bobina/bujía con otro cilindro y reescanear (si el fallo se muda, era la bobina)", "Prueba de compresión", "Revisar el inyector"],
+    "severity": "severe", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "P0304", "system": "engine", "title": "Fallo de encendido (misfire) cilindro 4", "description": "Fallo de encendido aislado en el cilindro 4.",
+    "common_causes": ["Bujía/bobina gastada en el cil. 4", "Inyector en falla cil. 4", "Compresión baja en el cil. 4"],
+    "suggested_checks": ["Intercambiar bobina/bujía con otro cilindro y reescanear", "Prueba de compresión", "Revisar el inyector"],
+    "severity": "severe", "source": "definición genérica SAE J2012"
   },
   {
     "code": "P0321", "system": "engine", "title": "Sensor de régimen/posición del motor - rango/rendimiento",
     "description": "La señal del sensor de régimen del motor es implausible.",
     "common_causes": ["Sensor de cigüeñal", "Rueda fónica dañada", "Cableado"],
     "suggested_checks": ["Revisar sensor de cigüeñal y rueda fónica", "Comprobar cableado"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
+    "severity": "moderate", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "P0325", "system": "engine", "title": "Sensor de picado (knock) 1 - falla de circuito",
+    "description": "La señal del sensor de detonación es implausible.",
+    "common_causes": ["Sensor de picado en falla", "Par de apriete del sensor incorrecto (flojo)", "Cableado con falla"],
+    "suggested_checks": ["Verificar el torque de montaje del sensor", "Medir la resistencia/señal del sensor", "Inspeccionar el cableado"],
+    "severity": "moderate", "source": "definición genérica SAE J2012"
   },
   {
     "code": "P0327", "system": "engine", "title": "Sensor de picado (knock) - señal baja",
     "description": "La señal del sensor de detonación es demasiado baja.",
     "common_causes": ["Sensor de picado flojo (par de apriete incorrecto)", "Sensor defectuoso", "Cableado"],
     "suggested_checks": ["Verificar torque de montaje del sensor", "Medir el sensor", "Revisar cableado"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
+    "severity": "moderate", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "P0335", "system": "engine", "title": "Sensor de posición del cigüeñal A - falla de circuito",
+    "description": "La señal del sensor de posición del cigüeñal falta o es implausible.",
+    "common_causes": ["Sensor de cigüeñal en falla", "Rueda fónica dañada o con aceite", "Cableado con falla"],
+    "suggested_checks": ["Inspeccionar el sensor y la rueda fónica por contaminación con aceite", "Medir la resistencia del sensor", "Revisar cableado/conector"],
+    "severity": "severe", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "P0340", "system": "engine", "title": "Sensor de posición del árbol de levas A - falla de circuito",
+    "description": "La señal del sensor de árbol de levas falta o es implausible.",
+    "common_causes": ["Sensor de árbol de levas en falla", "Desgaste de la cadena/correa que afecta el sincronismo", "Cableado con falla"],
+    "suggested_checks": ["Probar la señal del sensor de árbol", "Verificar el estado y las marcas de la distribución", "Inspeccionar cableado"],
+    "severity": "severe", "source": "definición genérica SAE J2012"
   },
   {
     "code": "P0341", "system": "engine", "title": "Sensor árbol de levas - rango/rendimiento",
     "description": "La señal del sensor de árbol de levas no coincide con lo esperado.",
     "common_causes": ["Sensor de árbol de levas", "Distribución salteada", "Cableado"],
     "suggested_checks": ["Probar el sensor de árbol", "Verificar puesta a punto de distribución"],
-    "severity": "severe", "source": "SAE J2012 generic definition"
+    "severity": "severe", "source": "definición genérica SAE J2012"
   },
   {
-    "code": "P0411", "system": "engine", "title": "Sistema de aire secundario - flujo incorrecto",
-    "description": "El sistema de inyección de aire secundario no funciona como se espera.",
-    "common_causes": ["Bomba de aire secundario", "Válvula combi trabada", "Mangueras"],
-    "suggested_checks": ["Probar la bomba de aire secundario", "Revisar la válvula y mangueras"],
-    "severity": "informational", "source": "SAE J2012 generic definition"
+    "code": "P0400", "system": "engine", "title": "EGR - falla de flujo",
+    "description": "El flujo de recirculación de gases de escape (EGR) es distinto al comandado.",
+    "common_causes": ["Válvula/conductos de EGR carbonizados", "Válvula/actuador de EGR en falla"],
+    "suggested_checks": ["Desmontar y limpiar la válvula EGR y conductos", "Probar el accionamiento de la válvula EGR"],
+    "severity": "moderate", "source": "definición genérica SAE J2012"
   },
   {
     "code": "P0401", "system": "engine", "title": "EGR - flujo insuficiente",
     "description": "La recirculación de gases de escape (EGR) fluye menos de lo comandado.",
     "common_causes": ["Válvula EGR o conductos carbonizados", "Válvula EGR trabada"],
     "suggested_checks": ["Desmontar y limpiar la válvula EGR y conductos", "Probar accionamiento de la EGR"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
+    "severity": "moderate", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "P0411", "system": "engine", "title": "Sistema de aire secundario - flujo incorrecto",
+    "description": "El sistema de inyección de aire secundario no funciona como se espera.",
+    "common_causes": ["Bomba de aire secundario", "Válvula combi trabada", "Mangueras"],
+    "suggested_checks": ["Probar la bomba de aire secundario", "Revisar la válvula y mangueras"],
+    "severity": "informational", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "P0420", "system": "engine", "title": "Eficiencia del catalizador por debajo del umbral (Banco 1)",
+    "description": "El patrón de la sonda posterior es demasiado parecido al de la anterior, lo que indica menor eficiencia del catalizador.",
+    "common_causes": ["Catalizador envejecido o en falla", "Fuga de escape cerca de las sondas", "Fallo de encendido/mezcla rica que dañó el catalizador", "Sonda trasera en falla"],
+    "suggested_checks": ["Descartar primero fallos de encendido/mezcla (causa raíz de la muerte prematura del cat)", "Inspeccionar el escape por fugas", "Comparar las ondas de las sondas anterior y posterior", "Probar/reemplazar el catalizador si se confirma"],
+    "severity": "moderate", "source": "definición genérica SAE J2012"
   },
   {
     "code": "P0421", "system": "engine", "title": "Eficiencia del catalizador (calentamiento) por debajo del umbral",
     "description": "El catalizador no alcanza la eficiencia esperada en fase de calentamiento.",
     "common_causes": ["Catalizador envejecido", "Sondas lambda", "Fuga de escape"],
     "suggested_checks": ["Descartar fallos de encendido/mezcla primero", "Revisar fugas de escape", "Evaluar el catalizador"],
-    "severity": "moderate", "source": "SAE J2012 generic definition"
+    "severity": "moderate", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "P0440", "system": "engine", "title": "Sistema de control de emisiones evaporativas (EVAP) - falla",
+    "description": "Se detectó una fuga o falla de flujo en el sistema EVAP.",
+    "common_causes": ["Tapa de combustible floja o faltante", "Manguera EVAP fisurada", "Válvula de purga/venteo en falla"],
+    "suggested_checks": ["Verificar que la tapa de combustible cierre y selle bien", "Probar el sistema EVAP con humo", "Probar el funcionamiento de la válvula de purga"],
+    "severity": "informational", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "P0442", "system": "engine", "title": "Sistema EVAP - fuga pequeña detectada",
+    "description": "Se detectó una fuga pequeña en el sistema EVAP.",
+    "common_causes": ["Tapa de combustible floja", "Pequeña fisura en manguera/canister EVAP"],
+    "suggested_checks": ["Revisar/reemplazar la tapa de combustible", "Probar el sistema EVAP con humo buscando fugas pequeñas"],
+    "severity": "informational", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "P0455", "system": "engine", "title": "Sistema EVAP - fuga grande detectada",
+    "description": "Se detectó una fuga grande en el sistema EVAP.",
+    "common_causes": ["Tapa de combustible faltante o floja", "Manguera EVAP desconectada"],
+    "suggested_checks": ["Verificar que la tapa de combustible esté puesta y ajustada", "Inspeccionar las mangueras EVAP por desconexión"],
+    "severity": "informational", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "P0500", "system": "engine", "title": "Sensor de velocidad del vehículo - falla",
+    "description": "La señal del sensor de velocidad falta o es implausible.",
+    "common_causes": ["Sensor de velocidad / entrada de velocidad de rueda del ABS en falla", "Cableado con falla"],
+    "suggested_checks": ["Cruzar con los sensores de velocidad de rueda del ABS", "Inspeccionar cableado/conector"],
+    "severity": "moderate", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "P0505", "system": "engine", "title": "Sistema de control de ralentí - falla",
+    "description": "El control de aire de ralentí no logra mantener el ralentí comandado.",
+    "common_causes": ["Cuerpo de mariposa carbonizado", "Fuga de vacío", "Actuador de ralentí en falla (integrado en la mariposa en motores drive-by-wire)"],
+    "suggested_checks": ["Limpiar el cuerpo de mariposa", "Buscar fugas de vacío con humo", "Hacer la adaptación de mariposa tras limpiar"],
+    "severity": "moderate", "source": "definición genérica SAE J2012"
   },
   {
     "code": "P0507", "system": "engine", "title": "Ralentí más alto de lo esperado",
     "description": "Las RPM de ralentí están por encima del valor objetivo.",
     "common_causes": ["Fuga de aire (vacío)", "Cuerpo de mariposa sucio", "Falta adaptación de mariposa"],
     "suggested_checks": ["Buscar fugas de vacío", "Limpiar cuerpo de mariposa y hacer adaptación"],
-    "severity": "informational", "source": "SAE J2012 generic definition"
+    "severity": "informational", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "P0562", "system": "engine", "title": "Voltaje del sistema bajo",
+    "description": "El voltaje de alimentación medido por la ECU está por debajo del rango esperado.",
+    "common_causes": ["Batería débil o en falla", "Alternador en falla", "Mala conexión de masa/terminal de batería"],
+    "suggested_checks": ["Probar la batería con carga", "Verificar la salida del alternador bajo carga", "Limpiar/ajustar los terminales de batería y las masas"],
+    "severity": "moderate", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "P0600", "system": "engine", "title": "Enlace de comunicación serie - falla",
+    "description": "Falla en el bus de comunicación interno de la ECU.",
+    "common_causes": ["Falla de cableado/conector en el bus de datos interno del vehículo", "ECU en falla"],
+    "suggested_checks": ["Buscar otros códigos de red U0xxx simultáneos en los módulos", "Inspeccionar el cableado y las masas del bus principal"],
+    "severity": "moderate", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "P0700", "system": "transmission", "title": "Sistema de control de transmisión - falla",
+    "description": "La caja (TCU) reportó una falla a la ECU; hay que revisar la TCU directamente para el código específico.",
+    "common_causes": ["Depende de la falla propia de la TCU - este código es solo una referencia cruzada"],
+    "suggested_checks": ["Escanear directamente el módulo de transmisión para ver su código específico"],
+    "severity": "moderate", "source": "definición genérica SAE J2012"
   },
   {
     "code": "P1136", "system": "engine", "title": "Ajuste de combustible - límite de adaptación (VAG, mezcla pobre)",
@@ -423,10 +374,52 @@
     "severity": "moderate", "source": "definición específica VAG (P1xxx), orientativa"
   },
   {
+    "code": "C0035", "system": "abs", "title": "Sensor de velocidad de rueda delantera izquierda - circuito",
+    "description": "El módulo ABS/ESP perdió o recibe una señal implausible del sensor de velocidad de la rueda delantera izquierda.",
+    "common_causes": ["Sensor o rueda dentada (tone ring) dañados", "Corrosión en cableado/conector", "Entrehierro del sensor con suciedad"],
+    "suggested_checks": ["Inspeccionar el sensor y la rueda dentada por daño/suciedad", "Revisar continuidad del cableado y corrosión del conector"],
+    "severity": "severe", "source": "definición genérica SAE J2012 (los códigos de chasis varían algo según fabricante)"
+  },
+  {
+    "code": "C0040", "system": "abs", "title": "Sensor de velocidad de rueda delantera derecha - circuito",
+    "description": "El módulo ABS/ESP perdió o recibe una señal implausible del sensor de velocidad de la rueda delantera derecha.",
+    "common_causes": ["Sensor o rueda dentada (tone ring) dañados", "Corrosión en cableado/conector", "Entrehierro del sensor con suciedad"],
+    "suggested_checks": ["Inspeccionar el sensor y la rueda dentada por daño/suciedad", "Revisar continuidad del cableado y corrosión del conector"],
+    "severity": "severe", "source": "definición genérica SAE J2012 (los códigos de chasis varían algo según fabricante)"
+  },
+  {
+    "code": "U0100", "system": "network", "title": "Sin comunicación con la ECU del motor (ECM/PCM)",
+    "description": "Un módulo del bus reporta que ya no puede comunicarse con la computadora del motor.",
+    "common_causes": ["Falla de alimentación/masa de la ECU", "Falla de cableado del bus (abierto/corto)", "Fusible de la ECU quemado"],
+    "suggested_checks": ["Revisar el fusible y la alimentación/masa principal de la ECU", "Inspeccionar el cableado CAN-H/CAN-L por daño", "Ver si algún módulo está bajando el bus (corto)"],
+    "severity": "severe", "source": "definición genérica SAE J2012"
+  },
+  {
     "code": "U0101", "system": "network", "title": "Sin comunicación con el módulo de transmisión (TCM)",
     "description": "Un módulo reporta que no puede comunicarse con la caja automática.",
     "common_causes": ["Alimentación/masa del TCM", "Cableado del bus", "TCM en falla"],
     "suggested_checks": ["Revisar fusible y alimentación del TCM", "Inspeccionar cableado CAN"],
-    "severity": "severe", "source": "SAE J2012 generic definition"
+    "severity": "severe", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "U0121", "system": "network", "title": "Sin comunicación con el módulo de ABS",
+    "description": "Un módulo reporta que ya no puede comunicarse con el módulo de ABS/ESP.",
+    "common_causes": ["Falla de alimentación/masa del módulo ABS", "Falla de cableado del bus", "Fusible del ABS quemado"],
+    "suggested_checks": ["Revisar el fusible y la alimentación/masa del módulo ABS", "Inspeccionar el cableado CAN hacia el módulo ABS"],
+    "severity": "severe", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "U0155", "system": "network", "title": "Sin comunicación con el cuadro de instrumentos",
+    "description": "Un módulo reporta que ya no puede comunicarse con el tablero/cuadro de instrumentos.",
+    "common_causes": ["Falla de alimentación/masa del cuadro", "Falla de cableado del bus", "Cuadro en falla"],
+    "suggested_checks": ["Revisar el fusible/alimentación del cuadro", "Inspeccionar el cableado hacia el cuadro"],
+    "severity": "moderate", "source": "definición genérica SAE J2012"
+  },
+  {
+    "code": "B0001", "system": "airbag", "title": "Control de despliegue airbag del conductor (genérico)",
+    "description": "Marcador genérico para fallas del circuito de despliegue del airbag del conductor; el detalle exacto varía según el fabricante.",
+    "common_causes": ["Circuito del squib abierto/en corto", "Desgaste del muelle de reloj (clockspring)", "Corrosión del conector"],
+    "suggested_checks": ["Que un técnico calificado en airbags inspeccione el muelle de reloj y el cableado del squib antes de borrar este código", "No medir circuitos pirotécnicos del squib con un multímetro común: usar una herramienta simuladora/resistor específica de airbags"],
+    "severity": "severe", "source": "definición genérica SAE J2012 (los códigos de airbag son muy específicos del fabricante; tomar esto solo como punto de partida)"
   }
 ]
