@@ -43,6 +43,18 @@ isn't tied to the CLI.
   that does it, and a test asserts that stays true. Reading goes through
   the experimental VAG layer, so on an adapter without monitor mode the
   safety interlock will decline rather than transmit blind.
+- **VAG module fault clear (`vagscan.gui` "VAG avanzado" tab)**: clears a
+  VAG module's stored fault memory - e.g. the airbag/SRS module (address
+  15), to extinguish the SRS light after a *legitimate* airbag repair. This
+  is a normal post-repair clear, the same operation any scan tool does: it
+  erases a stored code, it does not disable the module or its warning
+  light. If the fault is still physically present the module sets it again
+  and the light returns. Pick the module and clear - the app discovers and
+  opens the TP2.0 channel automatically (leave TX/RX blank), or you can
+  force confirmed IDs. Needs a monitor-capable adapter (a genuine 25K80,
+  OBDLink SX, ...); the cheap clone can't reach it and the interlock
+  refuses rather than transmit blind. There is no permanent masking/defeat:
+  every clear is one-shot, gated behind a typed confirmation phrase.
 - **CLI (`vagscan.app.cli`)**: the same functionality as a scriptable
   terminal tool - `ports`, `identify`, `live`, `dtc-read`, `dtc-clear`,
   `vin`, `vag-modules`, `vag-discover`, `vag-log`, `vag-clear`.

@@ -633,9 +633,11 @@ class VagscanApp(ttk.Frame):
         ttk.Label(page, text="VAG avanzado (experimental)", font=(theme.FONT_FAMILY, 14, "bold")).pack(anchor="w")
         ttk.Label(
             page,
-            text="Los IDs de canal no son automáticos: descubrí candidatos y confirmálos antes de borrar nada.",
+            text="Elegí el módulo (ej. 15 = airbag) y tocá \"Borrar fallos del módulo\": la app descubre y "
+            "abre el canal sola. Dejá TX/RX en blanco para el modo automático; completálos solo si querés "
+            "forzar IDs confirmados. Necesita un adaptador con modo monitor (el clon azul no sirve para esto).",
             style="Muted.TLabel",
-            wraplength=560,
+            wraplength=600,
         ).pack(anchor="w", pady=(2, 12))
 
         module_row = ttk.Frame(page)
@@ -701,23 +703,33 @@ class VagscanApp(ttk.Frame):
             return
         address = self.module_var.get().split(" - ")[0]
         tx_text, rx_text = self.tx_id_var.get().strip(), self.rx_id_var.get().strip()
-        if not tx_text or not rx_text:
-            messagebox.showwarning("Faltan datos", "Completá TX id y RX id (obtenélos con \"Descubrir canal\").")
-            return
-        try:
-            tx_id, rx_id = int(tx_text, 16), int(rx_text, 16)
-        except ValueError:
-            messagebox.showerror("Valor inválido", "TX id y RX id deben ser hexadecimales, ej: 300")
-            return
+        # TX/RX are optional: leave them blank and the app discovers and opens
+        # the channel itself (auto). Fill them in to override with confirmed IDs.
+        manual = bool(tx_text and rx_text)
+        tx_id = rx_id = None
+        if manual:
+            try:
+                tx_id, rx_id = int(tx_text, 16), int(rx_text, 16)
+            except ValueError:
+                messagebox.showerror("Valor inválido", "TX id y RX id deben ser hexadecimales, ej: 300")
+                return
 
         module_name = self.module_var.get().split(" - ", 1)[1] if " - " in self.module_var.get() else address
         is_airbag = address.upper() == "15"
 
         def do_clear():
             def job():
-                channel = self.session.tp20.open_channel(address, tx_id, rx_id)
-                kwp = KWP2000Client(self.session.tp20, channel)
-                kwp.clear_diagnostic_information()
+                if manual:
+                    channel = self.session.tp20.open_channel(address, tx_id, rx_id)
+                    kwp = KWP2000Client(self.session.tp20, channel)
+                    try:
+                        kwp.start_diagnostic_session()
+                    except Exception:
+                        pass
+                    kwp.clear_diagnostic_information()
+                else:
+                    # Auto: discover the channel, parse tx/rx, open, clear.
+                    self.session.clear_module_faults(address)
 
             def on_success(_result):
                 self._set_status(f"Comando de borrado enviado al módulo {address}.", "ok")

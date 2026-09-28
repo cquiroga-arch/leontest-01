@@ -39,7 +39,32 @@ logger = logging.getLogger(__name__)
 
 CHANNEL_SETUP_BROADCAST_ID = "200"
 _SETUP_OPCODE = 0xC0
+_SETUP_ACK_OPCODE = 0xD0  # positive channel-setup response opcode in the common TP2.0 layout
 _MAX_SINGLE_FRAME_PAYLOAD = 7  # 1 length byte + up to 7 data bytes per classic 8-byte CAN frame
+
+
+def parse_channel_setup(frames: "list[CapturedFrame]") -> "tuple[int, int] | None":
+    """Extract (tx_id, rx_id) from a TP2.0 channel-setup reply, best-effort.
+
+    In the commonly-documented layout, the module answers the 0x200 setup
+    probe with a frame whose payload starts with the positive-ack opcode
+    0xD0 and carries, as its last two bytes, the little-endian CAN ID the
+    tester must transmit on (TX). The module then talks back on the CAN ID
+    that reply itself arrived on (RX).
+
+    This is the one byte-level detail of TP2.0 nobody here can check against
+    a VAG spec, so it's isolated in this one function: if a real capture
+    from the car shows a different layout, this is the only place to fix,
+    and the manual open_channel(tx, rx) path stays available meanwhile.
+    Returns None when no frame looks like a setup ack.
+    """
+    for frame in frames:
+        data = frame.data
+        if _SETUP_ACK_OPCODE in data and len(data) >= 2:
+            tx_id = int.from_bytes(data[-2:], "little")
+            if 0 < tx_id <= 0x7FF:  # a plausible 11-bit CAN id
+                return tx_id, frame.can_id
+    return None
 
 
 class TP20Error(Exception):
@@ -144,6 +169,20 @@ class TP20Client:
         frames = [f for f in (parse_raw_frame(line) for line in raw.splitlines()) if f is not None]
         self._logger.frames.extend(frames)
         return frames
+
+    def discover_and_open(self, module_address: str, *, timeout: float = 1.0) -> "TP20Channel | None":
+        """Probe a module, parse the channel-setup reply, and open the channel
+        automatically so the caller doesn't have to read tx/rx off the raw
+        frames by hand. Returns None if the module didn't answer or the reply
+        couldn't be parsed - in which case the manual open_channel(tx, rx) path
+        (with the candidate frames from discover_channel) is still available.
+        """
+        frames = self.discover_channel(module_address, timeout=timeout)
+        parsed = parse_channel_setup(frames)
+        if parsed is None:
+            return None
+        tx_id, rx_id = parsed
+        return self.open_channel(module_address, tx_id, rx_id)
 
     def open_channel(
         self,

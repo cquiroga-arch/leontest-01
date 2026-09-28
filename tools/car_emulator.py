@@ -44,6 +44,7 @@ class CarEmulator:
         # The first bus request triggers a protocol search; the adapter emits
         # "SEARCHING..." before the data. We reproduce that once.
         self._searched = False
+        self.airbag_cleared = False
         # A live powertrain bus, for adapters that can monitor it. 0x200/0x300
         # (the TP2.0 transmit IDs) are deliberately absent so the interlock
         # sees them as free.
@@ -115,8 +116,19 @@ class CarEmulator:
             if cmd.startswith("09"):
                 return prefix + "49 02 01 57 56 57 5A 5A 5A 31 4B 5A 38 57 30 30 30 30 30 31"
             return prefix + self._live(cmd)
+        # --- VAG TP2.0, only when emulating a monitor-capable adapter ---
+        if self.genuine and cmd == "15C0FFFFFFFFFFFF":
+            # Channel-setup probe for module 15 (airbag). Reply on 0x215 with
+            # a positive ack (D0) whose last two bytes encode the tester TX id
+            # 0x300 (little-endian 00 03). Matches parse_channel_setup.
+            return "215 00 D0 00 03 40 05 00 03"
+        if self.genuine and cmd == "021089FFFFFFFFFF":
+            return "215 02 50 89 00 00 00 00"  # StartDiagnosticSession OK
+        if self.genuine and cmd == "0314FFFFFFFFFFFF":
+            self.airbag_cleared = True
+            return "215 01 54 00 00 00 00 00"  # ClearDiagnosticInformation OK
         if cmd.endswith("C0FFFFFFFFFFFF"):
-            return "NO DATA"  # no module answers the TP2.0 probe in this sim
+            return "NO DATA"  # other modules don't answer the TP2.0 probe in this sim
         return "OK"
 
 

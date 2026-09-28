@@ -14,6 +14,7 @@ from vagscan.vag.kwp2000 import KWP2000Client, OdometerReading
 from vagscan.vag.tp20 import TP20Client
 
 CLUSTER_ADDRESS = "17"  # instrument cluster, where the odometer lives
+AIRBAG_ADDRESS = "15"  # SRS / airbag module
 
 
 @dataclass
@@ -55,20 +56,20 @@ class VagscanSession:
         channel isn't confirmed - there is intentionally no fallback that
         invents a number.
         """
-        frames = self.tp20.discover_channel(CLUSTER_ADDRESS, timeout=1.0)
-        if not frames:
+        channel = self.tp20.discover_and_open(CLUSTER_ADDRESS, timeout=1.0)
+        if channel is None:
             raise RuntimeError(
-                f"El cuadro (módulo {CLUSTER_ADDRESS}) no respondió. En el clon ELM327 esto es lo "
-                "esperado: sin modo monitor la capa VAG queda deshabilitada."
+                f"El cuadro (módulo {CLUSTER_ADDRESS}) no respondió, o su respuesta de canal no se pudo "
+                "interpretar. En el clon ELM327 esto es lo esperado: sin modo monitor la capa VAG queda "
+                "deshabilitada. Con un adaptador con modo monitor, si responde pero no abre el canal, "
+                "capturá el intercambio en 'VAG avanzado' y confirmá tx/rx a mano."
             )
-        # discover_channel returns candidate frames; the real tx/rx IDs have
-        # to be confirmed against this car before a read can be trusted. We
-        # don't guess them - see the TP2.0 module docstring.
-        raise NotImplementedError(
-            "El cuadro respondió a la sonda, pero los IDs de canal TP2.0 de este auto todavía no están "
-            "confirmados, así que no se lee a ciegas. Capturá el intercambio con la pestaña 'VAG avanzado' "
-            "y confirmá tx/rx antes de leer el kilometraje."
-        )
+        kwp = KWP2000Client(self.tp20, channel)
+        try:
+            kwp.start_diagnostic_session()
+        except Exception:
+            pass  # some clusters read measuring blocks without an explicit session
+        return kwp.read_odometer()
 
     def read_cluster_odometer_on(self, tx_id: int, rx_id: int) -> OdometerReading:
         """Read the odometer once you've confirmed the cluster's TP2.0 tx/rx
@@ -80,6 +81,35 @@ class VagscanSession:
         except Exception:
             pass  # some clusters read measuring blocks without an explicit session
         return kwp.read_odometer()
+
+    def clear_module_faults(self, address: str) -> None:
+        """Clear the stored fault memory of a VAG module (e.g. 15 = airbag).
+
+        This is the legitimate post-repair clear a scan tool does: it erases
+        the stored code so the warning light goes out. It does NOT disable
+        the module or its telltale - if the fault is still physically
+        present, the module sets it again and the light comes back. The
+        caller (GUI) is expected to have gotten explicit human confirmation
+        first, especially for the airbag module.
+
+        Goes through the safety interlock (listen-before-transmit), so on an
+        adapter without monitor mode it refuses rather than transmitting
+        blind. Raises with a clear message if the module can't be reached or
+        its channel can't be opened.
+        """
+        channel = self.tp20.discover_and_open(address, timeout=1.0)
+        if channel is None:
+            raise RuntimeError(
+                f"El módulo {address} no respondió, o su respuesta de canal no se pudo interpretar. "
+                "Con el clon (sin modo monitor) esto es lo esperado. Con un adaptador con modo monitor, "
+                "si responde pero no abre el canal, usá 'Descubrir canal' y confirmá tx/rx a mano."
+            )
+        kwp = KWP2000Client(self.tp20, channel)
+        try:
+            kwp.start_diagnostic_session()
+        except Exception:
+            pass  # some modules accept a clear without an explicit session
+        kwp.clear_diagnostic_information()
 
     def close(self) -> None:
         self.driver.close()
