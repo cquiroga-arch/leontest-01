@@ -1,35 +1,44 @@
-"""EXPERIMENTAL VAG TP2.0 ("Transport Protocol 2.0") channel layer.
+"""VAG TP2.0 ("Transport Protocol 2.0") over CAN, on an ELM327's raw-CAN mode.
 
-Simos 7.1 (and everything else on this car's bus) speaks VAG's own
-KWP2000-over-CAN transport for anything beyond the OBD-II-mandated part of
-its behavior, and the ELM327 has no built-in support for it - it only knows
-the standard ISO 15765-4 OBD transport. Everything here is built on the
-ELM327's raw-CAN pass-through (ATSH to set a header, ATCAF0 to turn off its
-own frame reassembly, ATMA to monitor) instead.
+Simos 7.1 (and every other module on this car) speaks KWP2000 over VAG's own
+TP2.0 transport for anything beyond the OBD-II-mandated part of its
+behaviour. The ELM327 has no built-in TP2.0 support, so this drives it in
+raw pass-through mode: ATSH sets the CAN ID we transmit on, ATCRA filters
+what we receive, ATCAF0 turns off the adapter's own ISO-TP formatting so the
+bytes we hand it go out exactly as given.
 
-Read this before trusting any of it:
+Where the byte layout comes from
+--------------------------------
+The framing below follows two independent public implementations that agree
+with each other: I-CAN-hack/pq-flasher (tp20.py, Python) and TBK/vag-tool
+(src/tp20.rs, Rust), both written against PQ35-platform cars - the same
+platform as this Leon 1P. It has not yet been captured on *this* car, so
+treat it as "documented by two working tools", not "verified here".
 
-- The channel-setup broadcast ID (0x200) and probe frame layout below match
-  the description of TP2.0 that's most consistently repeated across
-  hobbyist reverse-engineering write-ups. Nobody here has a VAG-issued spec
-  to check that against, so treat it as an informed first guess, not fact.
-- `discover_channel()` therefore does NOT claim to know the resulting tx/rx
-  CAN IDs on its own. It sends the guessed probe and hands back every raw
-  frame the car replied with, unvalidated, for you (or a capture compared
-  against a known-working tool) to interpret. Only once you've confirmed
-  real tx/rx IDs from an actual capture on *this* car should you build a
-  `TP20Channel` via `open_channel()` and trust `send_message`.
-- `send_message` only implements single-frame TP2.0 messages (payload fits
-  in one CAN frame). Multi-frame segmentation's exact block-size/ack byte
-  layout is exactly the kind of detail that needs a validated capture
-  before it's worth encoding as "the" algorithm - see the NotImplementedError
-  below for where to add it once you have that capture.
+- Channel setup: tester sends `<module> C0 00 10 00 03 01` on 0x200. The
+  module answers on 0x200 + module with `00 D0 <rx lo> <rx hi> <tx lo> <tx hi> 01`:
+  the first id is the one the module transmits on (our RX), the second the
+  one it listens on (our TX). A nibble 0x1 in the top of either id means
+  "invalid".
+- Channel parameters: `A0 0F 8A FF 32 FF` (block size 15, T1 100 ms, T3
+  5 ms); the module answers `A1 ...` with its own timings.
+- Data: first byte is `<op><seq>`; seq counts mod 16 per direction. The
+  first frame of a message carries a 2-byte big-endian payload length.
+  op 0x2 = more frames follow, no ACK wanted; 0x1 = last frame, ACK wanted;
+  0x0 = ACK wanted, more follow; 0x3 = last, no ACK.
+- ACK: `B<seq+1>` where seq is the last data frame received.
+- Keep-alive `A3` (answered with `A1 ...`), disconnect `A8`.
+
+Bus safety
+----------
+Before the first transmit on any CAN ID, the bus is monitored and the ID is
+refused if a real module already uses it - see assert_transmit_id_is_free.
 """
 from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from vagscan.elm327.driver import ELM327Driver, ELM327Error
 
@@ -39,32 +48,61 @@ logger = logging.getLogger(__name__)
 
 CHANNEL_SETUP_BROADCAST_ID = "200"
 _SETUP_OPCODE = 0xC0
-_SETUP_ACK_OPCODE = 0xD0  # positive channel-setup response opcode in the common TP2.0 layout
-_MAX_SINGLE_FRAME_PAYLOAD = 7  # 1 length byte + up to 7 data bytes per classic 8-byte CAN frame
+_SETUP_ACK_OPCODE = 0xD0
+# The id we ask the module to transmit its replies on (pq-flasher/vag-tool use 0x300).
+_REQUESTED_MODULE_TX_ID = 0x300
+CHANNEL_PARAMS_REQUEST = bytes([0xA0, 0x0F, 0x8A, 0xFF, 0x32, 0xFF])
+_KEEPALIVE = bytes([0xA3])
+_DISCONNECT = bytes([0xA8])
+_FRAME_DATA_BYTES = 7
+_MAX_FRAMES_WITHOUT_ACK = 15  # we request block size 15 in CHANNEL_PARAMS_REQUEST
 
 
-def parse_channel_setup(frames: "list[CapturedFrame]") -> "tuple[int, int] | None":
-    """Extract (tx_id, rx_id) from a TP2.0 channel-setup reply, best-effort.
+def build_setup_request(module_address: str) -> bytes:
+    addr = int(module_address, 16)
+    tx_lo, tx_hi = _REQUESTED_MODULE_TX_ID & 0xFF, _REQUESTED_MODULE_TX_ID >> 8
+    return bytes([addr, _SETUP_OPCODE, 0x00, 0x10, tx_lo, tx_hi, 0x01])
 
-    In the commonly-documented layout, the module answers the 0x200 setup
-    probe with a frame whose payload starts with the positive-ack opcode
-    0xD0 and carries, as its last two bytes, the little-endian CAN ID the
-    tester must transmit on (TX). The module then talks back on the CAN ID
-    that reply itself arrived on (RX).
 
-    This is the one byte-level detail of TP2.0 nobody here can check against
-    a VAG spec, so it's isolated in this one function: if a real capture
-    from the car shows a different layout, this is the only place to fix,
-    and the manual open_channel(tx, rx) path stays available meanwhile.
-    Returns None when no frame looks like a setup ack.
+def parse_channel_setup(frames: "list[CapturedFrame]", module_address: str | None = None) -> "tuple[int, int] | None":
+    """Return (tester_tx_id, tester_rx_id) from a channel-setup reply, or
+    None if no frame is a valid positive setup response.
+
+    Layout `00 D0 <A lo> <A hi> <B lo> <B hi> 01`: A is the id the module
+    transmits on (our RX), B the id it listens on (our TX). Ids with any of
+    the top four bits set are flagged invalid by the protocol and rejected.
     """
+    expected_id = 0x200 + int(module_address, 16) if module_address else None
     for frame in frames:
         data = frame.data
-        if _SETUP_ACK_OPCODE in data and len(data) >= 2:
-            tx_id = int.from_bytes(data[-2:], "little")
-            if 0 < tx_id <= 0x7FF:  # a plausible 11-bit CAN id
-                return tx_id, frame.can_id
+        if expected_id is not None and frame.can_id != expected_id:
+            continue
+        if len(data) < 6 or data[1] != _SETUP_ACK_OPCODE:
+            continue
+        rx_id = int.from_bytes(data[2:4], "little")
+        tx_id = int.from_bytes(data[4:6], "little")
+        if rx_id & 0xF000 or tx_id & 0xF000 or not (0 < rx_id <= 0x7FF and 0 < tx_id <= 0x7FF):
+            continue
+        return tx_id, rx_id
     return None
+
+
+def segment_message(payload: bytes, start_seq: int) -> "tuple[list[bytes], int]":
+    """Split a KWP2000 payload into TP2.0 data frames. Returns the frames and
+    the next sequence number to use. Only the last frame asks for an ACK."""
+    if len(payload) > 0xFFFF:
+        raise ValueError("payload too long for TP2.0")
+    body = len(payload).to_bytes(2, "big") + payload
+    chunks = [body[i : i + _FRAME_DATA_BYTES] for i in range(0, len(body), _FRAME_DATA_BYTES)]
+    if len(chunks) > _MAX_FRAMES_WITHOUT_ACK:
+        raise ValueError(f"payload needs {len(chunks)} frames; more than one block isn't implemented")
+    frames = []
+    seq = start_seq & 0xF
+    for i, chunk in enumerate(chunks):
+        opcode = 0x10 if i == len(chunks) - 1 else 0x20
+        frames.append(bytes([opcode | seq]) + chunk)
+        seq = (seq + 1) & 0xF
+    return frames, seq
 
 
 class TP20Error(Exception):
@@ -77,17 +115,18 @@ class TP20Timeout(TP20Error):
 
 class BusSafetyError(TP20Error):
     """Raised instead of transmitting when the CAN ID we were about to use
-    is already being broadcast by a real module on this car."""
+    is already being broadcast by a real module on this car, or when the bus
+    can't be seen at all."""
 
 
-@dataclass(frozen=True)
+@dataclass
 class TP20Channel:
     module_address: str
     tx_id: int
     rx_id: int
-    block_size: int = 0
-    sep_time_ms: int = 10
     validated: bool = False
+    tx_seq: int = field(default=0, compare=False)
+    open: bool = field(default=True, compare=False)
 
 
 class TP20Client:
@@ -98,151 +137,258 @@ class TP20Client:
         self._verified_free_ids: set[int] = set()
         self._observed_ids: set[int] | None = None
         self._bus_listen_seconds = bus_listen_seconds
+        self._header: int | None = None
+        self._filter: int | None = None
+        self._raw_mode = False
+        self._inbox: list[CapturedFrame] = []
 
+    # -- bus-safety interlock ------------------------------------------
     def assert_transmit_id_is_free(self, can_id: int, *, listen_seconds: float | None = None) -> set[int]:
-        """Listen before transmitting.
-
-        Everything else this tool sends is standard OBD-II, addressed the way
-        every scan tool addresses it. The TP2.0 probe is the one exception:
-        it puts a frame on an ID we *believe* is the diagnostic channel-setup
-        broadcast, based on public reverse-engineering rather than a spec we
-        can check. If that belief is wrong for this particular car and the ID
-        actually belongs to some module's periodic traffic, we'd be a second
-        transmitter on an ID a real receiver is consuming.
-
-        So: watch the bus first, and refuse to transmit on an ID that's
-        already in use. Returns every CAN ID observed, which also tells the
-        caller the bus is genuinely alive.
-        """
+        """Listen before transmitting, and refuse to transmit on an ID that a
+        real module already uses, or when the bus can't be seen at all (a
+        clone without monitor mode, or the ignition off). Returns every CAN
+        ID observed."""
         listen_seconds = self._bus_listen_seconds if listen_seconds is None else listen_seconds
         if self._observed_ids is None:
             self._observed_ids = self._logger.observed_can_ids(listen_seconds)
+            # The logger cleared the receive filter and changed modes.
+            self._header = self._filter = None
+            self._raw_mode = False
         if not self._observed_ids:
-            # Seeing nothing is not the same as seeing an idle bus. A VAG
-            # powertrain bus with the ignition on is never silent, so an
-            # empty observation means we couldn't see the bus at all -
-            # typically a clone adapter without working monitor mode, or the
-            # ignition off. Either way we have no basis to call the ID free,
-            # and guessing in the permissive direction is the one mistake
-            # this interlock exists to prevent.
             raise BusSafetyError(
                 "No se transmitió nada: no se vio ninguna trama en el bus, así que no hay forma de "
                 "confirmar que el ID CAN 0x{:03X} esté libre. Suele ser un adaptador clon sin modo monitor "
-                "(ATMA) funcional, o el contacto apagado / bus dormido. La sonda TP2.0 queda deshabilitada: "
+                "(ATMA) funcional, o el contacto apagado / bus dormido. La capa VAG queda deshabilitada: "
                 "el OBD-II estándar sigue andando normal.".format(can_id)
             )
         if can_id in self._observed_ids:
             raise BusSafetyError(
                 f"No se transmitió nada: el ID CAN 0x{can_id:03X} ya lo está usando un módulo real de este "
                 f"auto (se lo vio en el bus durante {listen_seconds:g}s). Transmitir ahí sería pisar tráfico "
-                "legítimo, así que la sonda TP2.0 queda deshabilitada para este vehículo."
+                "legítimo, así que la capa VAG queda deshabilitada para este vehículo."
             )
         self._verified_free_ids.add(can_id)
         return self._observed_ids
 
     def forget_bus_observation(self) -> None:
-        """Drop the cached bus snapshot so the next transmit re-listens."""
         self._observed_ids = None
         self._verified_free_ids.clear()
 
-    def discover_channel(self, module_address: str, *, timeout: float = 1.0) -> list[CapturedFrame]:
-        """Send the best-guess TP2.0 channel-setup probe for `module_address`
-        (two hex digits, e.g. "01" for the engine) and return every frame
-        seen in response within `timeout` seconds. Empty list means the
-        module didn't answer at all (wrong address, module asleep/absent,
-        or the guessed probe format doesn't match what it expects)."""
-        addr = int(module_address, 16)
-        # Interlock: never the first thing we do on a car is transmit.
-        self.assert_transmit_id_is_free(int(CHANNEL_SETUP_BROADCAST_ID, 16))
-        self._logger.prepare()
-        self._driver.set_header(CHANNEL_SETUP_BROADCAST_ID)
+    # -- raw adapter plumbing --------------------------------------------
+    def _configure(self, tx_id: int, rx_id: int) -> None:
+        if not self._raw_mode:
+            self._driver.set_headers(True)
+            self._driver._try("ATS1")  # noqa: SLF001 - spaces between id and bytes
+            self._driver._try("ATCAF0")  # noqa: SLF001 - send our bytes verbatim
+            self._raw_mode = True
+        if self._header != tx_id:
+            self._driver.set_header(f"{tx_id:03X}")
+            self._header = tx_id
+        if self._filter != rx_id:
+            self._driver.set_receive_filter(f"{rx_id:03X}")
+            self._filter = rx_id
+
+    def _transmit(self, data: bytes, rx_id: int, *, timeout: float = 1.0) -> list[CapturedFrame]:
+        """Send one frame on the configured header; queue and return any
+        frames from `rx_id` the adapter printed while waiting."""
         try:
-            self._driver.send_command("ATSTFF")  # ~1020ms adapter-side wait, to not miss a slow ECU
-        except ELM327Error:
-            pass
-        data_hex = f"{addr:02X}{_SETUP_OPCODE:02X}FFFFFFFFFFFF"
-        try:
-            raw = self._driver.send_raw_frame(data_hex, timeout=timeout)
+            raw = self._driver.send_raw_frame(data.hex().upper(), timeout=timeout)
         except ELM327Error as exc:
-            logger.info("No reply captured for module %s setup probe: %s", module_address, exc)
-            return []
-        frames = [f for f in (parse_raw_frame(line) for line in raw.splitlines()) if f is not None]
+            if "NO DATA" in str(exc):
+                return []
+            raise TP20Timeout(str(exc)) from exc
+        frames = [f for f in (_parse(line) for line in raw.splitlines()) if f is not None]
         self._logger.frames.extend(frames)
+        mine = [f for f in frames if f.can_id == rx_id and f.data]
+        self._inbox.extend(mine)
+        return mine
+
+    def _monitor(self, rx_id: int, seconds: float) -> None:
+        """Passively wait for more frames from `rx_id` (ATMA with the receive
+        filter already set). Stops early once a frame that ends a message or
+        an ACK is seen."""
+        transport = self._driver._transport  # noqa: SLF001
+        buf = b""
+        with transport.transaction():
+            transport.write(b"ATMA\r")
+            deadline = time.monotonic() + seconds
+            while time.monotonic() < deadline:
+                chunk = transport.read_until(b"\n", timeout=min(max(deadline - time.monotonic(), 0.01), 0.1))
+                buf += chunk
+                if chunk and _ends_wait(buf, rx_id):
+                    break
+            transport.write(b" ")
+            try:
+                buf += transport.read_until(b">", timeout=1.0)
+            except ELM327Error:
+                pass
+        for line in buf.decode("ascii", errors="replace").splitlines():
+            frame = _parse(line)
+            if frame is not None and frame.can_id == rx_id and frame.data:
+                self._logger.frames.append(frame)
+                self._inbox.append(frame)
+
+    def _next_frame(self, rx_id: int, deadline: float) -> CapturedFrame:
+        while not self._inbox:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TP20Timeout(f"sin respuesta en el ID 0x{rx_id:03X}")
+            self._monitor(rx_id, min(remaining, 0.5))
+        return self._inbox.pop(0)
+
+    # -- channel lifecycle -------------------------------------------------
+    def discover_channel(self, module_address: str, *, timeout: float = 1.0) -> list[CapturedFrame]:
+        """Send the TP2.0 channel-setup request to `module_address` and return
+        the frames the module answered with (empty if nobody answered)."""
+        self.assert_transmit_id_is_free(int(CHANNEL_SETUP_BROADCAST_ID, 16))
+        reply_id = 0x200 + int(module_address, 16)
+        self._configure(int(CHANNEL_SETUP_BROADCAST_ID, 16), reply_id)
+        self._inbox.clear()
+        try:
+            frames = self._transmit(build_setup_request(module_address), reply_id, timeout=timeout)
+        except TP20Timeout as exc:
+            logger.info("No reply to channel setup for module %s: %s", module_address, exc)
+            frames = []
+        self._inbox.clear()
         return frames
 
     def discover_and_open(self, module_address: str, *, timeout: float = 1.0) -> "TP20Channel | None":
-        """Probe a module, parse the channel-setup reply, and open the channel
-        automatically so the caller doesn't have to read tx/rx off the raw
-        frames by hand. Returns None if the module didn't answer or the reply
-        couldn't be parsed - in which case the manual open_channel(tx, rx) path
-        (with the candidate frames from discover_channel) is still available.
-        """
         frames = self.discover_channel(module_address, timeout=timeout)
-        parsed = parse_channel_setup(frames)
+        parsed = parse_channel_setup(frames, module_address)
         if parsed is None:
             return None
         tx_id, rx_id = parsed
         return self.open_channel(module_address, tx_id, rx_id)
 
-    def open_channel(
-        self,
-        module_address: str,
-        tx_id: int,
-        rx_id: int,
-        *,
-        block_size: int = 0,
-        sep_time_ms: int = 10,
-    ) -> TP20Channel:
-        """Build a channel from tx/rx CAN IDs you've already confirmed
-        (typically via `discover_channel` plus a real capture)."""
-        channel = TP20Channel(
-            module_address=module_address,
-            tx_id=tx_id,
-            rx_id=rx_id,
-            block_size=block_size,
-            sep_time_ms=sep_time_ms,
-            validated=True,
-        )
+    def open_channel(self, module_address: str, tx_id: int, rx_id: int, *, timeout: float = 1.0) -> TP20Channel:
+        """Exchange channel parameters on an already set-up channel and return
+        it ready for send_message. Raises TP20Timeout if the module doesn't
+        answer the parameter request with A1."""
+        self.assert_transmit_id_is_free(tx_id)
+        self._configure(tx_id, rx_id)
+        self._inbox.clear()
+        self._transmit(CHANNEL_PARAMS_REQUEST, rx_id, timeout=timeout)
+        deadline = time.monotonic() + timeout
+        while True:
+            frame = self._next_frame(rx_id, deadline)
+            if frame.data[0] == 0xA1:
+                break
+        channel = TP20Channel(module_address=module_address, tx_id=tx_id, rx_id=rx_id, validated=True)
         self._channel = channel
         return channel
 
-    def send_message(self, channel: TP20Channel, payload: bytes, *, timeout: float = 2.0) -> bytes:
-        if len(payload) > _MAX_SINGLE_FRAME_PAYLOAD:
-            raise NotImplementedError(
-                f"payload of {len(payload)} bytes needs TP2.0 multi-frame segmentation, "
-                "which isn't implemented yet - see the tp20.py module docstring. "
-                "Capture a known multi-frame exchange on this car first and encode the "
-                "real block-size/ack byte layout here rather than guessing it."
-            )
-        self.assert_transmit_id_is_free(channel.tx_id)
-        self._driver.set_header(f"{channel.tx_id:03X}")
-        frame_hex = f"{len(payload):02X}" + payload.hex().upper()
-        frame_hex = frame_hex.ljust(16, "F")  # pad to 8 bytes like the setup probe
-        try:
-            raw = self._driver.send_raw_frame(frame_hex, timeout=timeout)
-        except ELM327Error as exc:
-            raise TP20Timeout(f"no reply on rx id {channel.rx_id:03X}: {exc}") from exc
-        frames = [f for f in (parse_raw_frame(line) for line in raw.splitlines()) if f is not None]
-        self._logger.frames.extend(frames)
-        reply = next((f for f in frames if f.can_id == channel.rx_id), None)
-        if reply is None:
-            raise TP20Timeout(f"no frame from expected rx id {channel.rx_id:03X} (saw {[f.can_id_hex for f in frames]})")
-        length = reply.data[0] if reply.data else 0
-        return reply.data[1 : 1 + length]
+    def close_channel(self, channel: TP20Channel | None = None) -> None:
+        channel = channel or self._channel
+        if channel is not None and channel.open:
+            try:
+                self._configure(channel.tx_id, channel.rx_id)
+                self._transmit(_DISCONNECT, channel.rx_id, timeout=0.3)
+            except (TP20Error, ELM327Error):
+                pass
+            channel.open = False
+        self._inbox.clear()
+        self._channel = None
 
     def keep_alive(self, channel: TP20Channel) -> None:
-        """TP2.0 channels are expected to time out and close after a period
-        of inactivity (a T3-style idle timer, in every description of this
-        protocol we could find) - call this periodically during a long
-        session. What exactly should be sent as a no-op keepalive frame is
-        one more thing to confirm from a real capture; for now this resends
-        an empty-payload message, which is a reasonable guess but, like the
-        rest of this module, unverified against the real ECU.
-        """
+        self._configure(channel.tx_id, channel.rx_id)
+        self._transmit(_KEEPALIVE, channel.rx_id, timeout=0.5)
+        deadline = time.monotonic() + 0.5
         try:
-            self.send_message(channel, b"", timeout=0.5)
-        except TP20Error:
-            logger.debug("keep_alive probe on channel %s got no reply (may be normal)", channel.module_address)
+            while True:
+                frame = self._next_frame(channel.rx_id, deadline)
+                if frame.data[0] == 0xA1:
+                    return
+                self._inbox.insert(0, frame)
+                return
+        except TP20Timeout:
+            logger.debug("keep-alive on module %s got no A1", channel.module_address)
 
-    def close_channel(self) -> None:
-        self._channel = None
+    def restore_obd_mode(self) -> None:
+        """Put the adapter back the way standard OBD-II expects it."""
+        self._driver._try("ATCAF1")  # noqa: SLF001
+        self._driver._try("ATS0")  # noqa: SLF001
+        self._driver.clear_receive_filter()
+        self._driver._try("ATSH7DF")  # noqa: SLF001
+        try:
+            self._driver.set_headers(False)
+        except ELM327Error:
+            pass
+        self._header = self._filter = None
+        self._raw_mode = False
+
+    # -- messaging ---------------------------------------------------------
+    def send_message(self, channel: TP20Channel, payload: bytes, *, timeout: float = 2.0) -> bytes:
+        """Send one KWP2000 request and return the module's reply payload."""
+        self.assert_transmit_id_is_free(channel.tx_id)
+        if not channel.open:
+            raise TP20Error("el canal TP2.0 está cerrado")
+        self._configure(channel.tx_id, channel.rx_id)
+        frames, next_seq = segment_message(payload, channel.tx_seq)
+        self._inbox.clear()
+        for frame in frames:
+            self._transmit(frame, channel.rx_id, timeout=timeout)
+        channel.tx_seq = next_seq
+        expected_ack = 0xB0 | next_seq
+        deadline = time.monotonic() + timeout
+        while True:
+            frame = self._next_frame(channel.rx_id, deadline)
+            head = frame.data[0]
+            if head == expected_ack:
+                break
+            if head & 0xF0 == 0xB0:
+                raise TP20Error(f"ACK con secuencia inesperada: {head:02X} (se esperaba {expected_ack:02X})")
+            if head == 0xA8:
+                channel.open = False
+                raise TP20Error("el módulo cerró el canal TP2.0")
+            # A data frame before the ACK: keep it for receive_message.
+            self._inbox.insert(0, frame)
+            break
+        return self.receive_message(channel, timeout=timeout)
+
+    def receive_message(self, channel: TP20Channel, *, timeout: float = 2.0) -> bytes:
+        """Reassemble the next message from the module, ACKing as asked."""
+        deadline = time.monotonic() + timeout
+        body = bytearray()
+        while True:
+            frame = self._next_frame(channel.rx_id, deadline)
+            head = frame.data[0]
+            op, seq = head >> 4, head & 0xF
+            if head == 0xA3:
+                self._transmit(bytes([0xA1]) + CHANNEL_PARAMS_REQUEST[1:], channel.rx_id)
+                continue
+            if head == 0xA8:
+                channel.open = False
+                raise TP20Error("el módulo cerró el canal TP2.0")
+            if op in (0xB, 0x9, 0xA):
+                continue  # stray ACK / parameter frame
+            if op not in (0x0, 0x1, 0x2, 0x3):
+                continue
+            body.extend(frame.data[1:])
+            if op in (0x0, 0x1):
+                self._transmit(bytes([0xB0 | ((seq + 1) & 0xF)]), channel.rx_id, timeout=0.3)
+            if op in (0x1, 0x3):
+                if len(body) < 2:
+                    raise TP20Error("mensaje TP2.0 demasiado corto")
+                length = int.from_bytes(body[:2], "big")
+                payload = bytes(body[2 : 2 + length])
+                if len(payload) < length:
+                    raise TP20Error(f"mensaje TP2.0 incompleto: {len(payload)} de {length} bytes")
+                return payload
+
+
+def _ends_wait(buf: bytes, rx_id: int) -> bool:
+    for line in buf.decode("ascii", errors="replace").splitlines():
+        frame = _parse(line)
+        if frame is None or frame.can_id != rx_id or not frame.data:
+            continue
+        op = frame.data[0] >> 4
+        if op in (0x1, 0x3, 0xA, 0xB):
+            return True
+    return False
+
+
+def _parse(line: str) -> "CapturedFrame | None":
+    # TP2.0 frames are variable length and their first byte is often small
+    # (an opcode/sequence like 0x07), which the generic DLC-prefix heuristic
+    # would mistake for a length byte. ATD1 is never enabled, so no DLC.
+    return parse_raw_frame(line, allow_dlc_prefix=False)

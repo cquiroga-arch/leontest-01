@@ -71,3 +71,38 @@ def fake_transport():
     transport = FakeTransport()
     transport.open()
     return transport
+
+
+class SimBusTransport(FakeTransport):
+    """FakeTransport whose raw-CAN commands are answered by a simulated
+    TP2.0 bus (vagscan.sim.tp20_bus); everything else falls back to the
+    canned `responses` map like FakeTransport."""
+
+    def __init__(self, bus, responses: dict[str, str] | None = None, default: str = "OK"):
+        super().__init__(responses, default)
+        self.bus = bus
+
+    def write(self, data: bytes) -> None:
+        if not self._open:
+            raise TransportClosed("closed")
+        cmd = data.decode("ascii").strip()
+        if not cmd:  # the space that stops ATMA
+            self._pending_reply = b">"
+            return
+        self.written.append(cmd)
+        if cmd in self.responses:
+            reply = self.responses[cmd]
+        else:
+            reply = self.bus.handle(cmd)
+            if reply is None:
+                reply = self.default
+        self._pending_reply = (reply + "\r>").encode("ascii")
+
+
+def sim_bus(**engine_kwargs):
+    from vagscan.sim.tp20_bus import SimModule, SimulatedTP20Bus
+
+    return SimulatedTP20Bus(
+        LIVE_BUS_TRAFFIC.split("\r"),
+        [SimModule(0x01, tester_tx=0x740, **engine_kwargs), SimModule(0x15, tester_tx=0x741)],
+    )

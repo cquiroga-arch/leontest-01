@@ -55,9 +55,41 @@ isn't tied to the CLI.
   OBDLink SX, ...); the cheap clone can't reach it and the interlock
   refuses rather than transmit blind. There is no permanent masking/defeat:
   every clear is one-shot, gated behind a typed confirmation phrase.
+- **Throttle body alignment + idle measurement (`vagscan.gui` "Mariposa /
+  Ralentí" tab, `vagscan.app.throttle`)**: the VCDS "01 - Engine > 04 Basic
+  Settings > group 060" procedure. Checks the documented preconditions over
+  standard OBD-II first (engine off, coolant 5-95 °C, battery >= 11.5 V, no
+  engine faults), then runs basic settings, shows the group's values live
+  ("ADP RUN" -> "ADP OK"), and always stops basic settings, closes the
+  channel and returns the adapter to OBD-II mode, even on error or cancel.
+  The group is selectable (060 default; Ross-Tech notes some Simos ECUs use
+  098 or 001). "Medir ralentí" samples RPM for 20 s over standard OBD-II and
+  reports the average and the swing, so the effect of the alignment on idle
+  hunting is a number, not an impression - that part works on any adapter.
 - **CLI (`vagscan.app.cli`)**: the same functionality as a scriptable
   terminal tool - `ports`, `identify`, `live`, `dtc-read`, `dtc-clear`,
   `vin`, `vag-modules`, `vag-discover`, `vag-log`, `vag-clear`.
+
+## TP2.0: rewritten in v0.3.0
+
+The first TP2.0 implementation here was wrong at the byte level and would
+not have worked on the real car with any adapter: wrong channel-setup frame,
+no channel-parameter exchange, a length byte instead of TP2.0's
+opcode/sequence header, no ACKs, single-frame only, and raw frames parsed
+with the driver's `ATS0` (no spaces) setting, which runs the CAN id and the
+data together. It now follows the framing of two independent public
+implementations written for PQ35 cars like this one
+([pq-flasher](https://github.com/I-CAN-hack/pq-flasher),
+[vag-tool](https://github.com/TBK/vag-tool)): setup `<mod> C0 00 10 00 03 01`
+on 0x200, `A0`/`A1` parameters, `<op><seq>` data frames with a 2-byte length,
+`B<seq+1>` ACKs, multi-frame both ways, `A3` keep-alive, `A8` disconnect.
+Basic settings use `31 BA 00 <g>` / `31 B9 00 <g>` / `32 B8 00 <g>` (vag-tool),
+measuring blocks `21 <g>` decoded with vag-tool's formula table.
+
+This is verified against a simulated ECU (`vagscan.sim.tp20_bus`, also
+behind `tools/car_emulator.py --genuine`), end-to-end over a real serial
+PTY and through the GUI. It has **not** yet run against the real Simos 7.1;
+the first run on the car is the real test.
 
 ## What's experimental (`vagscan.vag`) and why
 
@@ -94,7 +126,8 @@ adapter locally and never reach the bus; only these five things do:
 | `03` / `07` / `0A` | standard read | none |
 | `0902` (VIN) | standard read | none |
 | `04` (clear DTCs) | standard **write** | reversible; resets MIL + readiness monitors. Gated behind a typed confirmation phrase |
-| TP2.0 probe frame | **non-standard** | the only real question mark - see below |
+| TP2.0 channel setup / KWP2000 over it | **non-standard** | VAG diagnostics - see below |
+| Basic settings `31 BA/B9` + `32 B8` (throttle alignment) | VAG **routine** | moves the throttle plate for ~30 s with the engine off; gated behind precondition checks and a typed confirmation |
 
 A default scan is **only** the standard reads. The VAG module sweep is a
 checkbox that starts unchecked.
@@ -118,7 +151,8 @@ probe frames went out.
 could leave a module worse than it started** - wrong keys increment a
 lockout counter. Nothing in the app or the CLI calls it, and it now refuses
 to run without an explicit `i_understand_lockout_risk=True` from your own
-code. There is no flashing, no coding, no adaptation writing, and no
+code. There is no flashing, no coding, no adaptation-channel writing (basic
+settings for the throttle alignment is the one routine it runs), and no
 immobilizer code anywhere in this project.
 
 ## About the cheap blue "ELM327 mini" clones
@@ -208,6 +242,10 @@ even created one.
 
 ## Screenshots (GUI)
 
+| Adaptación de mariposa |
+|---|
+| ![TBA](docs/screenshots/tba.png) |
+
 | Escaneo completo | Confirmación antes de borrar |
 |---|---|
 | ![Scan](docs/screenshots/scan.png) | ![Clear](docs/screenshots/clear-confirm.png) |
@@ -290,7 +328,7 @@ vagscan --port COM5 vag-log --seconds 30 --out capture.log
 pytest
 ```
 
-80 tests run against an in-memory fake transport (`tests/conftest.py`) - no
+122 tests run against an in-memory fake transport (`tests/conftest.py`) - no
 hardware required. They validate our own protocol/framing logic (driver AT
 sequencing, OBD2 PID/DTC decoding, TP2.0 single-frame send/receive, KWP2000
 positive/negative response handling, the odometer read + decode, the

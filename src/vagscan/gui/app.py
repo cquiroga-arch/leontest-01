@@ -7,14 +7,16 @@ from __future__ import annotations
 
 import logging
 import queue
+import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from vagscan.app.full_scan import FullScanner
 from vagscan.app.session import VagscanSession
+from vagscan.app.throttle import check_preconditions, measure_idle, run_throttle_adaptation
 from vagscan.transport import autodetect_elm327, list_serial_ports
 from vagscan.vag.addresses import MODULE_ADDRESSES
-from vagscan.vag.kwp2000 import KWP2000Client, KWP2000Error
+from vagscan.vag.kwp2000 import KWP2000Error
 from vagscan.vag.tp20 import TP20Timeout
 
 from . import theme
@@ -115,6 +117,8 @@ class VagscanApp(ttk.Frame):
         # the UI thread, so it goes through a queue the poll loop drains -
         # same reason IOWorker doesn't call back into Tk directly.
         self._progress_queue: queue.Queue = queue.Queue()
+        self._tba_queue: queue.Queue = queue.Queue()
+        self._tba_cancel = threading.Event()
 
         theme.apply(root)
         self.worker = IOWorker()
@@ -173,6 +177,7 @@ class VagscanApp(ttk.Frame):
             ("dtc", "Fallas (DTC)"),
             ("live", "En vivo"),
             ("odo", "Kilometraje"),
+            ("tba", "Mariposa / Ralentí"),
             ("vag", "VAG avanzado"),
             ("about", "Seguridad / Acerca de"),
         ]:
@@ -188,6 +193,7 @@ class VagscanApp(ttk.Frame):
             "dtc": self._build_dtc_page(content),
             "live": self._build_live_page(content),
             "odo": self._build_odometer_page(content),
+            "tba": self._build_tba_page(content),
             "vag": self._build_vag_page(content),
             "about": self._build_about_page(content),
         }
@@ -626,6 +632,169 @@ class VagscanApp(ttk.Frame):
         self._run(job, on_success, on_error, busy_widgets=(self.odo_read_btn,))
 
     # ------------------------------------------------------------------
+    # Throttle body alignment / idle page
+    # ------------------------------------------------------------------
+    def _build_tba_page(self, parent: ttk.Frame) -> ttk.Frame:
+        page = ttk.Frame(parent)
+        ttk.Label(page, text="Adaptación de mariposa y ralentí", font=(theme.FONT_FAMILY, 14, "bold")).pack(anchor="w")
+        ttk.Label(
+            page,
+            text="1) Con el motor en marcha y caliente, medí el ralentí para tener el 'antes'.  "
+            "2) Apagá el motor, dejá el contacto puesto, pie fuera del acelerador, y verificá las condiciones.  "
+            "3) Adaptá la mariposa (configuración básica, grupo 060).  4) Apagá el contacto 10 s, arrancá y medí "
+            "el ralentí de nuevo. La medición funciona con cualquier adaptador; la adaptación necesita uno con "
+            "modo monitor (el clon azul no sirve).",
+            style="Muted.TLabel",
+            wraplength=640,
+        ).pack(anchor="w", pady=(2, 10))
+
+        idle_row = ttk.Frame(page)
+        idle_row.pack(fill="x", pady=(0, 6))
+        self.idle_btn = ttk.Button(idle_row, text="Medir ralentí (20 s)", command=self._measure_idle)
+        self.idle_btn.pack(side="left")
+        self.idle_result = ttk.Label(idle_row, text="", style="Muted.TLabel")
+        self.idle_result.pack(side="left", padx=(12, 0))
+
+        ttk.Separator(page).pack(fill="x", pady=8)
+
+        cond_row = ttk.Frame(page)
+        cond_row.pack(fill="x")
+        self.tba_check_btn = ttk.Button(cond_row, text="Verificar condiciones", command=self._tba_check)
+        self.tba_check_btn.pack(side="left")
+        ttk.Label(cond_row, text="Grupo:").pack(side="left", padx=(16, 4))
+        self.tba_group_var = tk.StringVar(value="060")
+        ttk.Combobox(cond_row, textvariable=self.tba_group_var, values=["060", "098", "001"], width=6).pack(side="left")
+        self.tba_run_btn = ttk.Button(cond_row, text="Adaptar mariposa", style="Accent.TButton", command=self._tba_run)
+        self.tba_run_btn.pack(side="left", padx=(12, 0))
+        self.tba_cancel_btn = ttk.Button(cond_row, text="Cancelar", command=self._tba_cancel.set, state="disabled")
+        self.tba_cancel_btn.pack(side="left", padx=(8, 0))
+
+        self.tba_checks = tk.Listbox(page, height=5)
+        self.tba_checks.pack(fill="x", pady=(8, 6))
+        ttk.Label(page, text="Valores del grupo durante la adaptación:", style="Muted.TLabel").pack(anchor="w")
+        self.tba_log = tk.Listbox(page, height=10)
+        self.tba_log.pack(fill="both", expand=True, pady=(2, 0))
+        self.tba_status = ttk.Label(page, text="", style="Muted.TLabel", wraplength=640)
+        self.tba_status.pack(anchor="w", pady=(6, 0))
+        return page
+
+    def _tba_group(self) -> int | None:
+        try:
+            group = int(self.tba_group_var.get().strip(), 10)
+        except ValueError:
+            group = -1
+        if not 0 <= group <= 255:
+            messagebox.showerror("Grupo inválido", "El grupo es un número entre 000 y 255 (ej. 060).")
+            return None
+        return group
+
+    def _measure_idle(self) -> None:
+        if self.session is None:
+            return
+        self.streaming = False
+        self.idle_result.configure(text="Midiendo... (motor en marcha, sin tocar el acelerador)")
+
+        def job():
+            return measure_idle(self.session, 20.0)
+
+        def on_success(stats):
+            self.idle_result.configure(
+                text=f"Promedio {stats.mean:.0f} rpm · mín {stats.low:.0f} · máx {stats.high:.0f} · "
+                f"oscila {stats.swing:.0f} rpm (desvío {stats.stdev:.0f}) · {len(stats.samples)} lecturas"
+            )
+            self._set_status("Ralentí medido.", "ok")
+
+        def on_error(exc):
+            self.idle_result.configure(text=str(exc))
+            self._set_status(f"No se pudo medir el ralentí: {exc}", "warn")
+
+        self._run(job, on_success, on_error, busy_widgets=(self.idle_btn,))
+
+    def _show_checks(self, pre) -> None:
+        self.tba_checks.delete(0, "end")
+        for c in pre.checks:
+            self.tba_checks.insert("end", f"{'OK ' if c.ok else 'NO '}  {c.name}: {c.detail}")
+            self.tba_checks.itemconfigure("end", foreground=theme.OK_GREEN if c.ok else "#e0836f")
+
+    def _tba_check(self, then=None) -> None:
+        if self.session is None:
+            return
+        self.streaming = False
+
+        def on_success(pre):
+            self._show_checks(pre)
+            if pre.ok:
+                self._set_status("Condiciones OK para adaptar la mariposa.", "ok")
+            else:
+                self._set_status("Hay condiciones sin cumplir (ver lista).", "warn")
+            if then is not None:
+                then(pre)
+
+        self._run(lambda: check_preconditions(self.session), on_success, busy_widgets=(self.tba_check_btn, self.tba_run_btn))
+
+    def _tba_run(self) -> None:
+        group = self._tba_group()
+        if group is None or self.session is None:
+            return
+
+        def after_check(pre):
+            if not pre.ok:
+                messagebox.showwarning(
+                    "Condiciones", "No se cumplen todas las condiciones (ver la lista). Corregilas y volvé a intentar."
+                )
+                return
+            warning = (
+                f"Se va a hacer la configuración básica del grupo {group:03d} en la ECU de motor. La mariposa se "
+                "mueve sola durante ~30 s: motor APAGADO, contacto puesto, no toques el acelerador y no tengas "
+                "la mano dentro del cuerpo de mariposa."
+            )
+            self._confirm_dialog("Adaptar mariposa", warning, "ADAPTAR", lambda: self._tba_start(group))
+
+        self._tba_check(then=after_check)
+
+    def _tba_start(self, group: int) -> None:
+        self.tba_log.delete(0, "end")
+        self.tba_status.configure(text="Adaptando...")
+        self._tba_cancel.clear()
+        self.tba_cancel_btn.configure(state="normal")
+
+        def job():
+            return run_throttle_adaptation(
+                self.session,
+                group,
+                on_reading=lambda t, values: self._tba_queue.put((t, values)),
+                should_stop=self._tba_cancel.is_set,
+            )
+
+        def on_success(result):
+            self.tba_cancel_btn.configure(state="disabled")
+            self.tba_status.configure(text=result.message)
+            level = {"ok": "ok", "cancelled": "warn"}.get(result.status, "warn")
+            self._set_status(result.message, level)
+            if result.status == "ok":
+                messagebox.showinfo(
+                    "Listo", "Adaptación terminada. Apagá el contacto 10 s, arrancá y medí el ralentí de nuevo."
+                )
+
+        def on_error(exc):
+            self.tba_cancel_btn.configure(state="disabled")
+            self.tba_status.configure(text=str(exc))
+            self._set_status(f"Adaptación no realizada: {exc}", "error")
+            messagebox.showerror("Adaptación no realizada", str(exc))
+
+        self._run(job, on_success, on_error, busy_widgets=(self.tba_run_btn, self.tba_check_btn))
+
+    def _drain_tba(self) -> None:
+        while True:
+            try:
+                elapsed, values = self._tba_queue.get_nowait()
+            except queue.Empty:
+                return
+            cells = "   |   ".join(v.display() for v in values) or "(sin datos)"
+            self.tba_log.insert("end", f"{elapsed:5.1f} s   {cells}")
+            self.tba_log.see("end")
+
+    # ------------------------------------------------------------------
     # VAG (experimental) page
     # ------------------------------------------------------------------
     def _build_vag_page(self, parent: ttk.Frame) -> ttk.Frame:
@@ -720,13 +889,7 @@ class VagscanApp(ttk.Frame):
         def do_clear():
             def job():
                 if manual:
-                    channel = self.session.tp20.open_channel(address, tx_id, rx_id)
-                    kwp = KWP2000Client(self.session.tp20, channel)
-                    try:
-                        kwp.start_diagnostic_session()
-                    except Exception:
-                        pass
-                    kwp.clear_diagnostic_information()
+                    self.session.clear_module_faults_on(address, tx_id, rx_id)
                 else:
                     # Auto: discover the channel, parse tx/rx, open, clear.
                     self.session.clear_module_faults(address)
@@ -904,8 +1067,12 @@ class VagscanApp(ttk.Frame):
             self.vag_discover_btn,
             self.vag_clear_btn,
             self.capture_btn,
+            self.idle_btn,
+            self.tba_check_btn,
+            self.tba_run_btn,
         ):
             widget.configure(state="normal" if connected else "disabled")
+        self.tba_cancel_btn.configure(state="disabled")
         if not connected:
             self.live_toggle_btn.configure(text="Iniciar")
 
@@ -929,6 +1096,7 @@ class VagscanApp(ttk.Frame):
         try:
             self.worker.poll()
             self._drain_progress()
+            self._drain_tba()
         except Exception as exc:  # noqa: BLE001 - keeping the loop alive matters more
             logger.exception("Error draining background results")
             self._set_status(f"Error interno: {exc}", "error")

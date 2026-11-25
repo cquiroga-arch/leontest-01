@@ -29,7 +29,11 @@ import math
 import os
 import pty
 import threading
+import sys
 import time
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+from vagscan.sim.tp20_bus import SimModule, SimulatedTP20Bus  # noqa: E402
 
 _START = time.time()
 
@@ -45,6 +49,9 @@ class CarEmulator:
         # "SEARCHING..." before the data. We reproduce that once.
         self._searched = False
         self.airbag_cleared = False
+        # Toggle with --engine-off to exercise the throttle alignment, which
+        # requires ignition on / engine off.
+        self.engine_off = False
         # A live powertrain bus, for adapters that can monitor it. 0x200/0x300
         # (the TP2.0 transmit IDs) are deliberately absent so the interlock
         # sees them as free.
@@ -55,6 +62,10 @@ class CarEmulator:
                 "320 05 00 00 00 00 00 00 00",
                 "420 00 00 00 00 00 00 00 00",
             ]
+        )
+        self.vag_bus = SimulatedTP20Bus(
+            self.bus_traffic.split("\r"),
+            [SimModule(0x01, tester_tx=0x740, adaptation_seconds=8.0), SimModule(0x15, tester_tx=0x741)],
         )
 
     @property
@@ -69,7 +80,11 @@ class CarEmulator:
     def _live(self, cmd: str) -> str:
         t = time.time() - _START
         if cmd == "010C":
-            rpm = int(850 + 60 * math.sin(t * 1.7) + 25 * math.sin(t * 5.3))
+            if self.engine_off:
+                return "41 0C 00 00"
+            # Idle hunting ~+-60 rpm before the throttle alignment, steady after.
+            hunt = 8 if self.vag_bus.module(0x01).adapt_stopped else 60
+            rpm = int(850 + hunt * math.sin(t * 1.7) + (hunt / 3) * math.sin(t * 5.3))
             return f"41 0C {(rpm * 4) >> 8:02X} {(rpm * 4) & 0xFF:02X}"
         if cmd == "010D":
             return "41 0D 00"
@@ -89,16 +104,20 @@ class CarEmulator:
     def handle(self, cmd: str) -> str:
         if cmd in self._unimplemented:
             return "?"
+        # VAG TP2.0, only when emulating a monitor-capable adapter. Checked
+        # first: a frame like 01 C0 ... to 0x200 is not an OBD Mode 01 request.
+        if self.genuine:
+            reply = self.vag_bus.handle(cmd)
+            if reply is not None:
+                return reply
         if cmd == "ATI":
             return "ELM327 v1.5"
         if cmd == "AT@2":
             return "?"
         if cmd == "ATRV":
-            return self.battery_voltage()
+            return "12.4V" if self.engine_off else self.battery_voltage()
         if cmd == "ATDPN":
             return "A6"
-        if cmd == "ATMA":  # only reached when genuine (else '?')
-            return self.bus_traffic
         if cmd == "03":
             return "NO DATA" if self.cleared else "43 03 00 01 71"
         if cmd in ("07", "0A"):
@@ -116,19 +135,6 @@ class CarEmulator:
             if cmd.startswith("09"):
                 return prefix + "49 02 01 57 56 57 5A 5A 5A 31 4B 5A 38 57 30 30 30 30 30 31"
             return prefix + self._live(cmd)
-        # --- VAG TP2.0, only when emulating a monitor-capable adapter ---
-        if self.genuine and cmd == "15C0FFFFFFFFFFFF":
-            # Channel-setup probe for module 15 (airbag). Reply on 0x215 with
-            # a positive ack (D0) whose last two bytes encode the tester TX id
-            # 0x300 (little-endian 00 03). Matches parse_channel_setup.
-            return "215 00 D0 00 03 40 05 00 03"
-        if self.genuine and cmd == "021089FFFFFFFFFF":
-            return "215 02 50 89 00 00 00 00"  # StartDiagnosticSession OK
-        if self.genuine and cmd == "0314FFFFFFFFFFFF":
-            self.airbag_cleared = True
-            return "215 01 54 00 00 00 00 00"  # ClearDiagnosticInformation OK
-        if cmd.endswith("C0FFFFFFFFFFFF"):
-            return "NO DATA"  # other modules don't answer the TP2.0 probe in this sim
         return "OK"
 
 
@@ -153,9 +159,13 @@ def serve(emu: CarEmulator) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Software ELM327 + car for testing VAGScan.")
     parser.add_argument("--genuine", action="store_true", help="emulate an adapter with working monitor mode")
+    parser.add_argument("--engine-off", action="store_true", help="ignition on, engine off (for the throttle alignment)")
+    parser.add_argument("--no-dtcs", action="store_true", help="start with no stored engine faults")
     parser.add_argument("--seconds", type=float, default=1800, help="how long to stay alive")
     args = parser.parse_args()
     emu = CarEmulator(genuine=args.genuine)
+    emu.engine_off = args.engine_off
+    emu.cleared = args.no_dtcs
     threading.Thread(target=serve, args=(emu,), daemon=True).start()
     time.sleep(args.seconds)
 

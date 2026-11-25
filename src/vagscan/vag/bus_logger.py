@@ -34,7 +34,7 @@ class CapturedFrame:
     raw_line: str
 
 
-def parse_raw_frame(line: str) -> CapturedFrame | None:
+def parse_raw_frame(line: str, *, allow_dlc_prefix: bool = True) -> CapturedFrame | None:
     tokens = _HEX_TOKEN.findall(line)
     if not tokens:
         return None
@@ -49,7 +49,7 @@ def parse_raw_frame(line: str) -> CapturedFrame | None:
     # Some firmwares prefix the data with a DLC byte (0-8) before the
     # payload; if the first remaining token is a plausible small DLC and the
     # count of subsequent bytes matches it, treat it as such and drop it.
-    if rest and len(rest[0]) <= 2:
+    if allow_dlc_prefix and rest and len(rest[0]) <= 2:
         try:
             maybe_dlc = int(rest[0], 16)
         except ValueError:
@@ -72,6 +72,9 @@ class BusLogger:
         """Disable CAN auto-formatting and any receive filter so every frame
         on the bus is visible in its raw form, headers included."""
         self.driver.set_headers(True)
+        # The driver runs with spaces off (ATS0) for OBD-II; raw frame lines
+        # need them on, or the CAN id and the data bytes run together.
+        self.driver._try("ATS1")  # noqa: SLF001
         self.driver.clear_receive_filter()
         self.driver._try("ATCAF0")  # noqa: SLF001 - intentional low-level access for this one adapter quirk
 

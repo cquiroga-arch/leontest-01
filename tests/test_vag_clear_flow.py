@@ -12,14 +12,14 @@ from vagscan.obd2 import OBD2Service
 from vagscan.vag.bus_logger import BusLogger, parse_raw_frame
 from vagscan.vag.tp20 import BusSafetyError, TP20Client, parse_channel_setup
 
-from .conftest import LIVE_BUS_TRAFFIC, FakeTransport
+from .conftest import SimBusTransport, sim_bus
 
 
 def test_parse_channel_setup_extracts_tx_and_rx():
-    frame = parse_raw_frame("215 00 D0 00 03 40 05 00 03")
-    tx, rx = parse_channel_setup([frame])
-    assert tx == 0x300  # little-endian 00 03
-    assert rx == 0x215  # the id the reply arrived on
+    frame = parse_raw_frame("215 00 D0 00 03 41 07 01")
+    tx, rx = parse_channel_setup([frame], "15")
+    assert tx == 0x741  # the id the module listens on
+    assert rx == 0x300  # the id the module answers on
 
 
 def test_parse_channel_setup_none_without_ack():
@@ -32,7 +32,7 @@ def test_parse_channel_setup_none_on_empty():
 
 
 def _session(responses):
-    transport = FakeTransport({"ATMA": LIVE_BUS_TRAFFIC, **responses})
+    transport = SimBusTransport(sim_bus(), {**responses})
     transport.open()
     driver = ELM327Driver(transport)
     return VagscanSession(
@@ -44,23 +44,19 @@ def _session(responses):
     ), transport
 
 
-# The exact frames a monitor-capable adapter would exchange to clear module 15.
-_AIRBAG_RESPONSES = {
-    "15C0FFFFFFFFFFFF": "215 00 D0 00 03 40 05 00 03",
-    "021089FFFFFFFFFF": "215 02 50 89 00 00 00 00",
-    "0314FFFFFFFFFFFF": "215 01 54 00 00 00 00 00",
-}
-
-
 def test_clear_airbag_module_end_to_end():
-    session, transport = _session(_AIRBAG_RESPONSES)
+    session, transport = _session({})
     session.clear_module_faults("15")  # should not raise
-    # The clear request actually went out on the opened channel.
-    assert "0314FFFFFFFFFFFF" in transport.written
+    # The clear request reached the airbag module, and nothing else.
+    assert transport.bus.module(0x15).faults_cleared
+    assert not transport.bus.module(0x01).faults_cleared
+    # Channel closed and adapter handed back to OBD-II afterwards.
+    assert "A8" in transport.written
+    assert "ATCAF1" in transport.written[transport.written.index("A8"):]
 
 
 def test_clear_module_raises_when_module_silent():
-    session, _ = _session({"15C0FFFFFFFFFFFF": "NO DATA"})
+    session, _ = _session({"15C00010000301": "NO DATA"})
     with pytest.raises(RuntimeError):
         session.clear_module_faults("15")
 
@@ -68,7 +64,7 @@ def test_clear_module_raises_when_module_silent():
 def test_clear_module_is_blocked_when_bus_cannot_be_seen():
     """On the clone (no monitor mode) the interlock refuses before any
     transmit - the airbag clear simply can't run there."""
-    session, transport = _session({"ATMA": "?", "15C0FFFFFFFFFFFF": "215 00 D0 00 03 40 05 00 03"})
+    session, transport = _session({"ATMA": "?"})
     with pytest.raises(BusSafetyError):
         session.clear_module_faults("15")
-    assert "15C0FFFFFFFFFFFF" not in transport.written
+    assert "15C00010000301" not in transport.written

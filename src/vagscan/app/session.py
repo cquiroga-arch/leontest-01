@@ -58,29 +58,34 @@ class VagscanSession:
         """
         channel = self.tp20.discover_and_open(CLUSTER_ADDRESS, timeout=1.0)
         if channel is None:
+            self.tp20.restore_obd_mode()
             raise RuntimeError(
                 f"El cuadro (módulo {CLUSTER_ADDRESS}) no respondió, o su respuesta de canal no se pudo "
                 "interpretar. En el clon ELM327 esto es lo esperado: sin modo monitor la capa VAG queda "
                 "deshabilitada. Con un adaptador con modo monitor, si responde pero no abre el canal, "
                 "capturá el intercambio en 'VAG avanzado' y confirmá tx/rx a mano."
             )
+        return self._with_channel(channel, lambda kwp: kwp.read_odometer())
+
+    def _with_channel(self, channel, action):
+        """Run `action(kwp)` on an open channel, then always close the channel
+        and return the adapter to standard OBD-II mode."""
         kwp = KWP2000Client(self.tp20, channel)
         try:
-            kwp.start_diagnostic_session()
-        except Exception:
-            pass  # some clusters read measuring blocks without an explicit session
-        return kwp.read_odometer()
+            try:
+                kwp.start_diagnostic_session()
+            except Exception:
+                pass  # some modules answer without an explicit session
+            return action(kwp)
+        finally:
+            self.tp20.close_channel(channel)
+            self.tp20.restore_obd_mode()
 
     def read_cluster_odometer_on(self, tx_id: int, rx_id: int) -> OdometerReading:
         """Read the odometer once you've confirmed the cluster's TP2.0 tx/rx
         CAN IDs (via the VAG-advanced discovery). READ-ONLY."""
         channel = self.tp20.open_channel(CLUSTER_ADDRESS, tx_id, rx_id)
-        kwp = KWP2000Client(self.tp20, channel)
-        try:
-            kwp.start_diagnostic_session()
-        except Exception:
-            pass  # some clusters read measuring blocks without an explicit session
-        return kwp.read_odometer()
+        return self._with_channel(channel, lambda kwp: kwp.read_odometer())
 
     def clear_module_faults(self, address: str) -> None:
         """Clear the stored fault memory of a VAG module (e.g. 15 = airbag).
@@ -99,17 +104,18 @@ class VagscanSession:
         """
         channel = self.tp20.discover_and_open(address, timeout=1.0)
         if channel is None:
+            self.tp20.restore_obd_mode()
             raise RuntimeError(
                 f"El módulo {address} no respondió, o su respuesta de canal no se pudo interpretar. "
                 "Con el clon (sin modo monitor) esto es lo esperado. Con un adaptador con modo monitor, "
                 "si responde pero no abre el canal, usá 'Descubrir canal' y confirmá tx/rx a mano."
             )
-        kwp = KWP2000Client(self.tp20, channel)
-        try:
-            kwp.start_diagnostic_session()
-        except Exception:
-            pass  # some modules accept a clear without an explicit session
-        kwp.clear_diagnostic_information()
+        self._with_channel(channel, lambda kwp: kwp.clear_diagnostic_information())
+
+    def clear_module_faults_on(self, address: str, tx_id: int, rx_id: int) -> None:
+        """Same as clear_module_faults, on a channel whose ids you confirmed."""
+        channel = self.tp20.open_channel(address, tx_id, rx_id)
+        self._with_channel(channel, lambda kwp: kwp.clear_diagnostic_information())
 
     def close(self) -> None:
         self.driver.close()

@@ -4,42 +4,62 @@ from vagscan.elm327.driver import ELM327Driver
 from vagscan.vag.kwp2000 import KWP2000Client, KWP2000Error
 from vagscan.vag.tp20 import TP20Client
 
-from .conftest import LIVE_BUS_TRAFFIC, FakeTransport
+from .conftest import SimBusTransport, sim_bus
 
 
-def _client_on_channel(responses):
-    # Live bus traffic so the safety interlock can confirm the tx ID is free.
-    transport = FakeTransport({"ATMA": LIVE_BUS_TRAFFIC, **responses})
+def _kwp(canned=None, **engine):
+    bus = sim_bus(**engine)
+    if canned:
+        bus.module(0x01).canned.update(canned)
+    transport = SimBusTransport(bus)
     transport.open()
-    driver = ELM327Driver(transport)
-    tp20 = TP20Client(driver, bus_listen_seconds=0.05)
-    channel = tp20.open_channel("01", tx_id=0x300, rx_id=0x310)
-    return KWP2000Client(tp20, channel), transport
+    tp20 = TP20Client(ELM327Driver(transport), bus_listen_seconds=0.05)
+    channel = tp20.discover_and_open("01")
+    return KWP2000Client(tp20, channel), bus
 
 
 def test_start_diagnostic_session_positive_response():
-    # request: SID 0x10, subfunction 0x89 -> len=02,10,89
-    kwp, _ = _client_on_channel({"021089FFFFFFFFFF": "310 02 50 89 FF FF FF FF FF"})
-    reply = kwp.start_diagnostic_session(0x89)
-    assert reply == bytes([0x89])
+    kwp, _ = _kwp()
+    assert kwp.start_diagnostic_session(0x89) == bytes([0x89])
 
 
-def test_clear_diagnostic_information_positive_response():
-    # request: SID 0x14, data 0xFF 0xFF -> len=03,14,FF,FF
-    kwp, transport = _client_on_channel({"0314FFFFFFFFFFFF": "310 01 54 FF FF FF FF FF"})
-    kwp.clear_diagnostic_information()  # should not raise
-    assert "021089FFFFFFFFFF" not in transport.written  # sanity: only the clear request was sent
+def test_clear_diagnostic_information():
+    kwp, bus = _kwp()
+    kwp.clear_diagnostic_information()
+    assert bus.module(0x01).faults_cleared
 
 
 def test_negative_response_raises_with_nrc():
-    # ECU rejects the clear request: 7F 14 22 (conditionsNotCorrect)
-    kwp, _ = _client_on_channel({"0314FFFFFFFFFFFF": "310 03 7F 14 22 FF FF FF"})
+    kwp, _ = _kwp(canned={bytes([0x14, 0xFF, 0xFF]): bytes([0x7F, 0x14, 0x22])})
     with pytest.raises(KWP2000Error) as exc_info:
         kwp.clear_diagnostic_information()
     assert exc_info.value.nrc == 0x22
 
 
 def test_read_dtc_by_status_returns_raw_payload():
-    kwp, _ = _client_on_channel({"021800FFFFFFFFFF": "310 03 58 01 33 FF FF FF"})
-    payload = kwp.read_dtc_by_status(0x00)
-    assert payload == bytes([0x01, 0x33])
+    kwp, _ = _kwp(canned={bytes([0x18, 0x00]): bytes([0x58, 0x01, 0x33])})
+    assert kwp.read_dtc_by_status(0x00) == bytes([0x01, 0x33])
+
+
+def test_response_pending_is_waited_for():
+    kwp, bus = _kwp()
+    kwp.start_diagnostic_session(0x89)
+    kwp.basic_setting_start(60)  # 31 B9 answers 7F 31 78, then 71 B9
+    assert bus.module(0x01).adapt_started is not None
+
+
+def test_basic_settings_request_bytes():
+    kwp, bus = _kwp()
+    kwp.start_diagnostic_session(0x89)
+    kwp.basic_setting_start(60)
+    kwp.basic_setting_stop(60)
+    reqs = bus.module(0x01).requests
+    assert bytes([0x31, 0xBA, 0x00, 60]) in reqs
+    assert bytes([0x31, 0xB9, 0x00, 60]) in reqs
+    assert bytes([0x32, 0xB8, 0x00, 60]) in reqs
+
+
+def test_read_group_decodes_cells():
+    kwp, _ = _kwp()
+    values = kwp.read_group(0x01)
+    assert values[0].unit == "rpm" and values[0].value == pytest.approx(1 * 0xC8 * 0x8C / 5)

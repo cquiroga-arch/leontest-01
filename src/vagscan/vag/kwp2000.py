@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .measuring import MeasuringValue, decode_measuring_block
 from .tp20 import TP20Channel, TP20Client, TP20Timeout
 
 __all__ = ["KWP2000Client", "KWP2000Error", "OdometerReading"]
@@ -34,6 +35,7 @@ _NRC = {
     0x21: "busy-repeatRequest",
     0x22: "conditionsNotCorrect-requestSequenceError",
     0x31: "requestOutOfRange",
+    0x33: "securityAccessRequired",
     0x35: "invalidKey",
     0x36: "exceedNumberOfAttempts",
     0x37: "requiredTimeDelayNotExpired",
@@ -73,6 +75,17 @@ class KWP2000Client:
         payload = bytes([sid]) + data
         try:
             reply = self._tp20.send_message(self._channel, payload, timeout=timeout)
+            busy_retries = 3
+            # NRC 0x78 = "received, still working": the real answer follows as
+            # another message. NRC 0x21 = busy: ask again a few times.
+            for _ in range(20):
+                if len(reply) >= 3 and reply[0] == 0x7F and reply[2] == 0x78:
+                    reply = self._tp20.receive_message(self._channel, timeout=max(timeout, 5.0))
+                elif len(reply) >= 3 and reply[0] == 0x7F and reply[2] == 0x21 and busy_retries > 0:
+                    busy_retries -= 1
+                    reply = self._tp20.send_message(self._channel, payload, timeout=timeout)
+                else:
+                    break
         except TP20Timeout as exc:
             raise KWP2000Error(f"no response to SID {sid:02X}: {exc}") from exc
         if not reply:
@@ -101,6 +114,23 @@ class KWP2000Client:
         uses isn't guaranteed to match the ISO 14230-3 example layout, so
         this deliberately returns raw bytes rather than a parsed structure."""
         return self._request(0x18, bytes([status_mask]))
+
+    def read_group(self, group: int) -> "list[MeasuringValue]":
+        """Read and decode measuring block `group` (SID 0x21)."""
+        return decode_measuring_block(self.read_measuring_block(group), group)
+
+    # -- Basic settings (VCDS "04 - Basic Settings") ----------------------
+    # Request bytes per TBK/vag-tool kwp2000.rs: routine local identifiers
+    # 0xBA (prepare), 0xB9 (run) and stopRoutine 0xB8, each followed by
+    # mode 0x00 (= basic-settings group) and the group number. Not yet
+    # captured on this car; an ECU that doesn't recognise them answers with
+    # a negative response (e.g. requestOutOfRange) and nothing runs.
+    def basic_setting_start(self, group: int) -> None:
+        self._request(0x31, bytes([0xBA, 0x00, group]))
+        self._request(0x31, bytes([0xB9, 0x00, group]))
+
+    def basic_setting_stop(self, group: int) -> None:
+        self._request(0x32, bytes([0xB8, 0x00, group]))
 
     def read_measuring_block(self, group: int) -> bytes:
         """SID 0x21 readDataByLocalIdentifier - VAG's "measuring blocks".

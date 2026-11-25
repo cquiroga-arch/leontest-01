@@ -10,14 +10,18 @@ from vagscan.elm327.driver import ELM327Driver
 from vagscan.vag.kwp2000 import KWP2000Client, KWP2000Error, OdometerReading, _decode_odometer_km
 from vagscan.vag.tp20 import TP20Client
 
-from .conftest import LIVE_BUS_TRAFFIC, FakeTransport
+from vagscan.sim.tp20_bus import SimModule, SimulatedTP20Bus
+
+from .conftest import LIVE_BUS_TRAFFIC, SimBusTransport
 
 
-def _kwp(responses):
-    transport = FakeTransport({"ATMA": LIVE_BUS_TRAFFIC, **responses})
+def _kwp(canned):
+    cluster = SimModule(0x17, tester_tx=0x742, canned={bytes.fromhex(k): bytes.fromhex(v) for k, v in canned.items()})
+    bus = SimulatedTP20Bus(LIVE_BUS_TRAFFIC.split("\r"), [cluster])
+    transport = SimBusTransport(bus)
     transport.open()
     tp20 = TP20Client(ELM327Driver(transport), bus_listen_seconds=0.05)
-    channel = tp20.open_channel("17", tx_id=0x300, rx_id=0x310)
+    channel = tp20.discover_and_open("17")
     return KWP2000Client(tp20, channel), transport
 
 
@@ -37,7 +41,7 @@ def test_decode_empty_is_none():
 
 def test_read_odometer_positive_response():
     # measuring block 0x22: response SID 0x61, then block bytes with km 135925
-    kwp, _ = _kwp({"022122FFFFFFFFFF": "310 05 61 22 F5 12 02 00 00"})
+    kwp, _ = _kwp({"2122": "6122F5120200"})
     reading = kwp.read_odometer()
     assert isinstance(reading, OdometerReading)
     assert reading.km == 135925
@@ -49,8 +53,8 @@ def test_read_odometer_falls_through_candidate_groups():
     # First candidate group (0x22) is rejected by the ECU, second (0x02) answers.
     kwp, _ = _kwp(
         {
-            "022122FFFFFFFFFF": "310 03 7F 21 31 00 00 00",  # requestOutOfRange
-            "022102FFFFFFFFFF": "310 05 61 02 A0 86 01 00 00",  # 0x0186A0 = 100000
+            "2122": "7F2131",  # requestOutOfRange
+            "2102": "6102A0860100",  # 0x0186A0 = 100000
         }
     )
     reading = kwp.read_odometer()
@@ -60,7 +64,7 @@ def test_read_odometer_falls_through_candidate_groups():
 
 def test_read_odometer_keeps_raw_when_nothing_decodes():
     # Block echoes group 0x22 then two zero bytes -> nothing plausible.
-    kwp, _ = _kwp({"022122FFFFFFFFFF": "310 04 61 22 00 00 00 00"})
+    kwp, _ = _kwp({"2122": "61220000"})
     reading = kwp.read_odometer()
     assert reading.km is None
     assert not reading.confident
@@ -70,9 +74,9 @@ def test_read_odometer_keeps_raw_when_nothing_decodes():
 def test_read_odometer_raises_when_cluster_never_answers():
     kwp, _ = _kwp(
         {
-            "022122FFFFFFFFFF": "310 03 7F 21 31 00 00 00",
-            "022102FFFFFFFFFF": "310 03 7F 21 31 00 00 00",
-            "022101FFFFFFFFFF": "310 03 7F 21 31 00 00 00",
+            "2122": "7F2131",
+            "2102": "7F2131",
+            "2101": "7F2131",
         }
     )
     with pytest.raises(KWP2000Error):

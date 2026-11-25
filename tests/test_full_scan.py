@@ -17,7 +17,7 @@ def _silent_module_probes(except_for: dict[str, str] | None = None) -> dict[str,
     just be a blanket default."""
     answers = {}
     for address in MODULE_ADDRESSES:
-        probe_hex = f"{int(address, 16):02X}C0FFFFFFFFFFFF"
+        probe_hex = f"{int(address, 16):02X}C00010000301"
         answers[probe_hex] = "NO DATA"
     answers.update(except_for or {})
     return answers
@@ -100,14 +100,14 @@ def test_scan_marks_a_module_that_answers_as_responding():
             "03": "NO DATA",
             "07": "NO DATA",
             "0A": "NO DATA",
-            **_silent_module_probes(except_for={"01C0FFFFFFFFFFFF": "204 01 C0 11 22 33 44 55 66"}),
+            **_silent_module_probes(except_for={"01C00010000301": "201 00 D0 00 03 40 07 01"}),
         }
     )
     result = FullScanner(session, scan_vag_modules=True).run()
 
     responding = result.responding_modules
     assert [m.address for m in responding] == ["01"]
-    assert responding[0].frames[0].can_id_hex == "204"
+    assert responding[0].frames[0].can_id_hex == "201"
 
 
 def test_scan_can_be_cancelled_midway():
